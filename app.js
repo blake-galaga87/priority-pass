@@ -877,7 +877,7 @@ function foggedShareText(gs) {
   const emojiFor = (g) => (g === "yes" ? "🟩" : g === "no" ? "⬜" : g === "name-win" ? "🟨" : "🟦");
   const grid = gs.guessLog.map(emojiFor).join("");
   const resultLine = gs.solved ? `${gs.guessesUsed}/${FOGGED_MAX_GUESSES}` : `X/${FOGGED_MAX_GUESSES}`;
-  return `Priority Pass — Fogged Card (${gs.date})\n${resultLine}\n${grid}`;
+  return `Priority Pass — Guess the Card (${gs.date})\n${resultLine}\n${grid}`;
 }
 
 // ---------- fogged card: view ----------
@@ -897,7 +897,7 @@ async function renderFoggedView() {
     } catch (err) {
       root.innerHTML = `
         <div class="empty-state">
-          Couldn't load today's Fogged Card: ${escapeHtml(err.message)}<br />
+          Couldn't load today's Guess the Card: ${escapeHtml(err.message)}<br />
           <button class="next-btn" id="fogged-retry" style="margin-top:0.8rem;">Retry</button>
         </div>
       `;
