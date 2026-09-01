@@ -551,6 +551,28 @@ body {
   padding: 0.15rem 0.6rem;
 }
 
+.custom-q-chip {
+  font-size: 0.75rem;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+}
+
+.custom-q-chip.yes {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.custom-q-chip.no {
+  color: var(--text-dim);
+}
+
+.fogged-custom-q-error {
+  font-size: 0.78rem;
+  color: var(--warn);
+}
+
 .fogged-banner {
   text-align: center;
   padding: 1rem;

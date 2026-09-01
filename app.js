@@ -861,6 +861,67 @@ function nameMatches(guess, cardName) {
   return g === frontFace;
 }
 
+// ---------- fogged card: free-text question parsing ----------
+// No AI/backend available (static site), so this is a lightweight heuristic:
+// pull the key phrase out of a couple of common question shapes, then check
+// it against the relevant card field. Good enough for "Is it a dragon?" /
+// "Does it have flying?" style questions; won't understand true free-form
+// English, and doesn't handle negation.
+
+const FOGGED_KEYWORD_ALIASES = {
+  fly: "flying",
+  flies: "flying",
+  flier: "flying",
+  flyer: "flying",
+  trampling: "trample",
+  hastes: "haste",
+  vigilant: "vigilance",
+  lifelinks: "lifelink",
+  menacing: "menace",
+  reaches: "reach",
+  hexproofed: "hexproof",
+  indestructibility: "indestructible",
+  regenerates: "regenerate",
+  cycles: "cycling",
+};
+
+const FOGGED_STOPWORDS = new Set(["is", "it", "a", "an", "the", "does", "have", "has", "can", "will", "this", "card", "of", "to", "that"]);
+
+function foggedExtractIntent(qText) {
+  const q = qText.toLowerCase().trim().replace(/\?+$/, "");
+  let m;
+  if ((m = q.match(/^(is|was) it (an?\s+)?(.+)$/))) return { mode: "identity", phrase: m[3].trim() };
+  if ((m = q.match(/^does it have (an?\s+)?(.+)$/))) return { mode: "ability", phrase: m[2].trim() };
+  if ((m = q.match(/^has it (an?\s+)?(.+)$/))) return { mode: "ability", phrase: m[2].trim() };
+  if ((m = q.match(/^does it (.+)$/))) return { mode: "ability", phrase: m[1].trim() };
+  if ((m = q.match(/^can it (.+)$/))) return { mode: "ability", phrase: m[1].trim() };
+  const words = q.split(/\s+/).filter((w) => w && !FOGGED_STOPWORDS.has(w));
+  return words.length ? { mode: "generic", phrase: words.join(" ") } : null;
+}
+
+// Returns true/false when answerable, or null when the question couldn't be parsed.
+function answerCustomQuestion(card, qText) {
+  const intent = foggedExtractIntent(qText);
+  if (!intent) return null;
+  let phrase = intent.phrase.replace(/\s+(ability|keyword)s?$/, "").trim();
+  if (!phrase) return null;
+  phrase = FOGGED_KEYWORD_ALIASES[phrase] || phrase;
+
+  const colorWords = { white: "W", blue: "U", black: "B", red: "R", green: "G" };
+  if (phrase in colorWords) return card.colors.includes(colorWords[phrase]);
+  if (phrase === "colorless") return card.colors.length === 0;
+  if (phrase === "multicolored" || phrase === "multicolor") return card.colors.length > 1;
+  if (["rare", "mythic", "common", "uncommon"].includes(phrase)) return card.rarity === phrase;
+
+  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`\\b${escaped}s?\\b`, "i");
+
+  if (intent.mode === "identity") return re.test(card.type_line || "");
+  if (intent.mode === "ability") return re.test((card.keywords || []).join(" ")) || re.test(card.oracle_text || "");
+  const combined = `${card.type_line || ""} ${(card.keywords || []).join(" ")} ${card.oracle_text || ""}`;
+  return re.test(combined);
+}
+
 // ---------- fogged card: state helpers ----------
 
 function foggedNewGameState(dateStr, card, isBonus) {
@@ -871,6 +932,7 @@ function foggedNewGameState(dateStr, card, isBonus) {
     answers: {}, // questionId -> true/false
     revealedRegions: [],
     nameGuesses: [], // wrong guesses only
+    customQuestions: [], // { text, answer } — free-text yes/no questions asked
     guessLog: [], // 'yes' | 'no' | 'name-wrong' | 'name-win'
     solved: false,
     lost: false,
@@ -976,6 +1038,13 @@ function renderFoggedGame() {
     ? `<div class="name-guess-history">${gs.nameGuesses.map((n) => `<span class="name-guess-chip">${escapeHtml(n)}</span>`).join("")}</div>`
     : "";
 
+  const customQuestions = gs.customQuestions || [];
+  const customQHistoryHtml = customQuestions.length
+    ? `<div class="name-guess-history">${customQuestions
+        .map((cq) => `<span class="custom-q-chip ${cq.answer ? "yes" : "no"}">${escapeHtml(cq.text)} — ${cq.answer ? "Yes" : "No"}</span>`)
+        .join("")}</div>`
+    : "";
+
   let bannerHtml = "";
   if (gs.solved) {
     bannerHtml = `
@@ -1058,6 +1127,16 @@ function renderFoggedGame() {
       </section>
 
       <section class="deck-input">
+        <label for="fogged-custom-q-input">Ask your own yes/no question (costs 1 guess)</label>
+        <div class="name-guess-row">
+          <input type="text" id="fogged-custom-q-input" placeholder="e.g. Is it a dragon? / Does it have flying?" ${guessesLeft <= 0 ? "disabled" : ""} />
+          <button class="next-btn" id="fogged-custom-q-submit" ${guessesLeft <= 0 ? "disabled" : ""}>Ask</button>
+        </div>
+        <div id="fogged-custom-q-error" class="fogged-custom-q-error" style="display:none;"></div>
+        ${customQHistoryHtml}
+      </section>
+
+      <section class="deck-input">
         <label for="fogged-name-input">Guess the card name (costs 1 guess)</label>
         <div class="name-guess-row">
           <input type="text" id="fogged-name-input" placeholder="Card name…" ${guessesLeft <= 0 ? "disabled" : ""} />
@@ -1085,6 +1164,14 @@ function renderFoggedGame() {
     nameSubmit.addEventListener("click", submitName);
     nameInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") submitName();
+    });
+
+    const customQInput = document.getElementById("fogged-custom-q-input");
+    const customQSubmit = document.getElementById("fogged-custom-q-submit");
+    const submitCustomQ = () => handleFoggedCustomQuestion(customQInput.value);
+    customQSubmit.addEventListener("click", submitCustomQ);
+    customQInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submitCustomQ();
     });
   }
 
@@ -1167,6 +1254,46 @@ function handleFoggedNameGuess(rawGuess) {
     gs.guessLog.push("name-wrong");
     foggedCheckEndState(gs);
   }
+  foggedSaveState(gs);
+  renderFoggedGame();
+}
+
+function foggedShowCustomQError(msg) {
+  const el = document.getElementById("fogged-custom-q-error");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+function handleFoggedCustomQuestion(rawText) {
+  const gs = state.fogged.gs;
+  const text = (rawText || "").trim();
+  if (!text || gs.solved || gs.lost || gs.guessesUsed >= FOGGED_MAX_GUESSES) return;
+
+  // Typing the actual name in this box should just win, same as the name field.
+  if (nameMatches(text, gs.card.name)) {
+    handleFoggedNameGuess(text);
+    return;
+  }
+
+  gs.customQuestions = gs.customQuestions || [];
+  const normalized = normalizeGuess(text);
+  const dup = gs.customQuestions.find((cq) => normalizeGuess(cq.text) === normalized);
+  if (dup) {
+    foggedShowCustomQError(`You already asked that — ${dup.answer ? "Yes" : "No"}.`);
+    return;
+  }
+
+  const answer = answerCustomQuestion(gs.card, text);
+  if (answer === null) {
+    foggedShowCustomQError('Couldn\'t figure out a yes/no answer for that — try rephrasing, e.g. "Is it a dragon?" or "Does it have flying?"');
+    return;
+  }
+
+  gs.guessesUsed += 1;
+  gs.customQuestions.push({ text, answer });
+  gs.guessLog.push(answer ? "yes" : "no");
+  foggedCheckEndState(gs);
   foggedSaveState(gs);
   renderFoggedGame();
 }
