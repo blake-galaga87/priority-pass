@@ -750,6 +750,10 @@ const FOGGED_QUESTIONS = [
   { id: "q_power4", text: "Is its power 4 or greater?", region: ["pt_box"], applicable: (c) => hasNumericPower(c), check: (c) => parseFloat(c.power) >= 4 },
   { id: "q_keyword", text: "Does it have a keyword ability?", region: ["keywords"], applicable: () => true, check: (c) => c.keywords.length > 0 },
   { id: "q_rare", text: "Is it rare or mythic?", region: ["rarity"], applicable: () => true, check: (c) => c.rarity === "rare" || c.rarity === "mythic" },
+  { id: "q_kill", text: "Does it destroy or kill something?", region: ["effects"], tag: "Removal", applicable: () => true, check: (c) => /destroy target|destroy all|destroy each|destroy up to/i.test((c.oracle_text || "")) },
+  { id: "q_bounce", text: "Does it bounce something (return it to hand)?", region: ["effects"], tag: "Bounce", applicable: () => true, check: (c) => /return\s+(target|up to|all|each)[^.]*\bhands?\b/i.test((c.oracle_text || "")) },
+  { id: "q_draw", text: "Does it draw cards?", region: ["effects"], tag: "Card Draw", applicable: () => true, check: (c) => /draws?\s+[\w\s]{0,20}?cards?\b/i.test((c.oracle_text || "")) },
+  { id: "q_edict", text: "Does it make an opponent sacrifice something?", region: ["effects"], tag: "Edict/Sacrifice", applicable: () => true, check: (c) => /\b(opponent|player)s?\b[^.]{0,30}\bsacrifices\b/i.test((c.oracle_text || "")) },
 ];
 
 const FOGGED_REGION_APPLICABLE = {
@@ -758,6 +762,7 @@ const FOGGED_REGION_APPLICABLE = {
   pt_box: (c) => c.power !== undefined && c.power !== null,
   keywords: () => true,
   rarity: () => true,
+  effects: () => true,
 };
 
 function foggedApplicableQuestions(card) {
@@ -776,6 +781,12 @@ function foggedField(raw, field) {
   return undefined;
 }
 
+function foggedOracleText(raw) {
+  if (typeof raw.oracle_text === "string") return raw.oracle_text;
+  if (raw.card_faces) return raw.card_faces.map((f) => f.oracle_text || "").join("\n");
+  return "";
+}
+
 function normalizeCard(raw) {
   const imageUris = foggedField(raw, "image_uris");
   return {
@@ -789,6 +800,7 @@ function normalizeCard(raw) {
     toughness: foggedField(raw, "toughness"),
     rarity: raw.rarity,
     keywords: raw.keywords || [],
+    oracle_text: foggedOracleText(raw),
     image_url: imageUris ? imageUris.normal : null,
     scryfall_uri: raw.scryfall_uri,
   };
@@ -861,16 +873,12 @@ function foggedSaveState(gs) {
   saveJSON(FOGGED_STATE_KEY, gs);
 }
 
-function foggedRevealFraction(gs) {
-  const applicableRegions = foggedApplicableRegions(gs.card);
-  const regionFraction = applicableRegions.length ? gs.revealedRegions.length / applicableRegions.length : 0;
-  const guessFraction = gs.guessesUsed / FOGGED_MAX_GUESSES;
-  return Math.min(1, 0.15 * guessFraction + 0.85 * regionFraction);
-}
-
 function foggedBlurPx(gs) {
+  // The image (and name) never sharpen from answering questions — this is a
+  // reasoning game about what the card DOES, not a visual-recognition game.
+  // Full clarity is only the end-of-round reveal, on a win or a loss.
   if (gs.solved || gs.lost) return 0;
-  return FOGGED_MAX_BLUR_PX * (1 - foggedRevealFraction(gs));
+  return FOGGED_MAX_BLUR_PX;
 }
 
 function foggedShareText(gs) {
@@ -934,6 +942,8 @@ function renderFoggedGame() {
   const ptDisplay = `${gs.card.power}/${gs.card.toughness}`;
   const keywordsDisplay = gs.card.keywords.length ? gs.card.keywords.join(", ") : "None";
   const rarityDisplay = gs.card.rarity ? gs.card.rarity[0].toUpperCase() + gs.card.rarity.slice(1) : "";
+  const matchedEffectTags = FOGGED_QUESTIONS.filter((q) => q.tag && gs.answers[q.id] === true).map((q) => q.tag);
+  const effectsDisplay = matchedEffectTags.length ? matchedEffectTags.join(", ") : "None";
 
   const gameOver = gs.solved || gs.lost;
   const blur = foggedBlurPx(gs);
@@ -1016,6 +1026,7 @@ function renderFoggedGame() {
         ${chipHtml("pt_box", "Power/Toughness", ptDisplay)}
         ${chipHtml("keywords", "Keywords", keywordsDisplay)}
         ${chipHtml("rarity", "Rarity", rarityDisplay)}
+        ${chipHtml("effects", "Effects", effectsDisplay)}
       </div>
 
       ${bannerHtml}
