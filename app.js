@@ -1,49 +1,175 @@
-const STORAGE_KEY = "priority-pass:stats";
+// ---------- storage helpers ----------
+
+const PRACTICE_STATS_KEY = "priority-pass:practice-stats";
+const DAILY_STATE_KEY = "priority-pass:daily-state";
+const HISTORY_KEY = "priority-pass:history";
+const HISTORY_LIMIT = 1000;
+
+function loadJSON(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) return JSON.parse(raw);
+  } catch (err) {
+    console.warn(`Could not read ${key}`, err);
+  }
+  return fallback;
+}
+
+function saveJSON(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.warn(`Could not save ${key}`, err);
+  }
+}
+
+function loadPracticeStats() {
+  return loadJSON(PRACTICE_STATS_KEY, { streak: 0, bestStreak: 0, correct: 0, total: 0 });
+}
+
+function loadDailyState() {
+  return loadJSON(DAILY_STATE_KEY, {
+    dailyStreak: 0,
+    bestDailyStreak: 0,
+    lastCompletedDate: null,
+    lastResult: null, // { scenarioId, chosenId, correct }
+  });
+}
+
+function loadHistory() {
+  return loadJSON(HISTORY_KEY, []);
+}
+
+function recordAttempt(mode, scenario, chosenOption) {
+  const history = loadHistory();
+  history.push({
+    ts: Date.now(),
+    mode,
+    scenarioId: scenario.id,
+    title: scenario.title,
+    tier: scenario.tier,
+    concept: scenario.concept,
+    boardState: scenario.board_state,
+    reveal: scenario.reveal,
+    rulesRefs: scenario.rules_refs || [],
+    chosenId: chosenOption.id,
+    chosenText: chosenOption.text,
+    correct: !!chosenOption.correct,
+    correctText: (scenario.options.find((o) => o.correct) || {}).text || "",
+  });
+  if (history.length > HISTORY_LIMIT) history.splice(0, history.length - HISTORY_LIMIT);
+  saveJSON(HISTORY_KEY, history);
+}
+
+// ---------- date / seeded pick helpers ----------
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function dateStrAddDays(dateStr, delta) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + delta);
+  return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
+}
+
+function hashStr(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  }
+  return h >>> 0;
+}
+
+function dailyScenarioFor(dateStr) {
+  const sorted = state.allScenarios.slice().sort((a, b) => a.id.localeCompare(b.id));
+  if (sorted.length === 0) return null;
+  const idx = hashStr(dateStr) % sorted.length;
+  return sorted[idx];
+}
+
+// ---------- shared render helpers ----------
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function tierBadgeClass(tier) {
+  return `badge badge-${tier}`;
+}
+
+function scenarioBodyHtml(s) {
+  const optionsHtml = s.options
+    .map(
+      (opt) => `
+      <button class="option-btn" data-option-id="${opt.id}">
+        <span class="option-letter">${opt.id.toUpperCase()}.</span>${escapeHtml(opt.text)}
+      </button>`
+    )
+    .join("");
+
+  return `
+    <div class="puzzle-meta">
+      <span class="${tierBadgeClass(s.tier)}">${s.tier}</span>
+      <span class="badge badge-concept">${escapeHtml(s.concept.replace(/_/g, " "))}</span>
+    </div>
+    <h2 class="puzzle-title">${escapeHtml(s.title)}</h2>
+    <p class="board-state">${escapeHtml(s.board_state)}</p>
+    <div class="options">${optionsHtml}</div>
+    <div id="reveal-slot"></div>
+  `;
+}
+
+function lockOptions(container, s, chosenId) {
+  container.querySelectorAll(".option-btn").forEach((btn) => {
+    btn.disabled = true;
+    const opt = s.options.find((o) => o.id === btn.dataset.optionId);
+    if (opt.correct) {
+      btn.classList.add("correct");
+    } else if (btn.dataset.optionId === chosenId) {
+      btn.classList.add("incorrect");
+    }
+  });
+}
+
+function revealHtml(s, wasCorrect, footerHtml) {
+  const refsHtml = (s.rules_refs || [])
+    .map((ref) => `<span class="rule-ref">${escapeHtml(ref)}</span>`)
+    .join("");
+  return `
+    <div class="reveal">
+      <div class="reveal-verdict ${wasCorrect ? "correct" : "incorrect"}">
+        ${wasCorrect ? "Correct." : "Not quite."}
+      </div>
+      <p class="reveal-text">${escapeHtml(s.reveal)}</p>
+      ${refsHtml ? `<div class="rules-refs">${refsHtml}</div>` : ""}
+      ${footerHtml || ""}
+    </div>
+  `;
+}
+
+// ---------- global state ----------
 
 const state = {
   allScenarios: [],
-  pool: [],       // scenarios matching current tier filter, shuffled
-  poolIndex: 0,
-  current: null,
-  tier: "all",
-  stats: loadStats(),
+  activeTab: "practice",
+  practice: { tier: "all", pool: [], poolIndex: 0, current: null, stats: loadPracticeStats() },
+  daily: { dailyState: loadDailyState() },
+  log: { search: "", tier: "all", concept: "all", result: "all" },
 };
 
-const el = {
-  puzzleArea: document.getElementById("puzzle-area"),
-  loading: document.getElementById("loading"),
-  puzzleCount: document.getElementById("puzzle-count"),
-  statStreak: document.getElementById("stat-streak"),
-  statScore: document.getElementById("stat-score"),
-  statTotal: document.getElementById("stat-total"),
-  statBest: document.getElementById("stat-best"),
-  tierBtns: Array.from(document.querySelectorAll(".tier-btn")),
-};
+const root = document.getElementById("view-root");
+const puzzleCountEl = document.getElementById("puzzle-count");
 
-function loadStats() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (err) {
-    console.warn("Could not read saved stats", err);
-  }
-  return { streak: 0, bestStreak: 0, correct: 0, total: 0 };
-}
-
-function saveStats() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.stats));
-  } catch (err) {
-    console.warn("Could not save stats", err);
-  }
-}
-
-function renderStats() {
-  el.statStreak.textContent = state.stats.streak;
-  el.statScore.textContent = state.stats.correct;
-  el.statTotal.textContent = state.stats.total;
-  el.statBest.textContent = state.stats.bestStreak;
-}
+// ---------- practice view ----------
 
 function shuffle(arr) {
   const copy = arr.slice();
@@ -54,139 +180,372 @@ function shuffle(arr) {
   return copy;
 }
 
-function buildPool() {
-  const filtered = state.tier === "all"
-    ? state.allScenarios
-    : state.allScenarios.filter((s) => s.tier === state.tier);
-  state.pool = shuffle(filtered);
-  state.poolIndex = 0;
+function practiceBuildPool() {
+  const p = state.practice;
+  const filtered = p.tier === "all" ? state.allScenarios : state.allScenarios.filter((s) => s.tier === p.tier);
+  p.pool = shuffle(filtered);
+  p.poolIndex = 0;
 }
 
-function nextScenario() {
-  if (state.pool.length === 0) {
-    state.current = null;
-    renderEmpty();
+function practiceNext() {
+  const p = state.practice;
+  if (p.pool.length === 0) {
+    p.current = null;
+    renderPracticeCard();
     return;
   }
-  if (state.poolIndex >= state.pool.length) {
-    // reshuffle once we've cycled through the whole filtered set
-    state.pool = shuffle(state.pool);
-    state.poolIndex = 0;
+  if (p.poolIndex >= p.pool.length) {
+    p.pool = shuffle(p.pool);
+    p.poolIndex = 0;
   }
-  state.current = state.pool[state.poolIndex++];
-  renderScenario();
+  p.current = p.pool[p.poolIndex++];
+  renderPracticeCard();
 }
 
-function renderEmpty() {
-  el.puzzleArea.innerHTML = `<div class="empty-state">No puzzles in this tier yet.</div>`;
-}
-
-function tierBadgeClass(tier) {
-  return `badge badge-${tier}`;
-}
-
-function renderScenario() {
-  const s = state.current;
-  const optionsHtml = s.options
-    .map(
-      (opt) => `
-      <button class="option-btn" data-option-id="${opt.id}">
-        <span class="option-letter">${opt.id.toUpperCase()}.</span>${escapeHtml(opt.text)}
-      </button>`
-    )
-    .join("");
-
-  el.puzzleArea.innerHTML = `
-    <div class="puzzle-meta">
-      <span class="${tierBadgeClass(s.tier)}">${s.tier}</span>
-      <span class="badge badge-concept">${escapeHtml(s.concept.replace(/_/g, " "))}</span>
-    </div>
-    <h2 class="puzzle-title">${escapeHtml(s.title)}</h2>
-    <p class="board-state">${escapeHtml(s.board_state)}</p>
-    <div class="options">${optionsHtml}</div>
-    <div id="reveal-slot"></div>
+function renderPracticeView() {
+  const p = state.practice;
+  root.innerHTML = `
+    <section class="controls">
+      <div class="tier-filter" role="group" aria-label="Difficulty tier">
+        ${["all", "beginner", "intermediate", "commander"]
+          .map(
+            (t) =>
+              `<button class="tier-btn${p.tier === t ? " active" : ""}" data-tier="${t}">${
+                t === "all" ? "All" : t[0].toUpperCase() + t.slice(1)
+              }</button>`
+          )
+          .join("")}
+      </div>
+      <div class="stats" aria-live="polite">
+        <div class="stat"><span class="stat-value" id="stat-streak">${p.stats.streak}</span><span class="stat-label">Streak</span></div>
+        <div class="stat"><span class="stat-value" id="stat-score">${p.stats.correct}</span><span class="stat-label">Correct</span></div>
+        <div class="stat"><span class="stat-value" id="stat-total">${p.stats.total}</span><span class="stat-label">Seen</span></div>
+        <div class="stat"><span class="stat-value" id="stat-best">${p.stats.bestStreak}</span><span class="stat-label">Best streak</span></div>
+      </div>
+    </section>
+    <section id="puzzle-area" class="puzzle-area"></section>
   `;
 
-  el.puzzleArea.querySelectorAll(".option-btn").forEach((btn) => {
-    btn.addEventListener("click", () => onOptionSelected(btn.dataset.optionId));
+  root.querySelectorAll(".tier-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      p.tier = btn.dataset.tier;
+      practiceBuildPool();
+      practiceNext();
+    });
+  });
+
+  if (!p.current || !p.pool.length) practiceBuildPool();
+  if (!p.current) practiceNext();
+  else renderPracticeCard();
+}
+
+function renderPracticeCard() {
+  const puzzleArea = document.getElementById("puzzle-area");
+  if (!puzzleArea) return;
+  const p = state.practice;
+  if (!p.current) {
+    puzzleArea.innerHTML = `<div class="empty-state">No puzzles in this tier yet.</div>`;
+    return;
+  }
+  puzzleArea.innerHTML = scenarioBodyHtml(p.current);
+  puzzleArea.querySelectorAll(".option-btn").forEach((btn) => {
+    btn.addEventListener("click", () => handlePracticeAnswer(btn.dataset.optionId));
   });
 }
 
-function onOptionSelected(optionId) {
-  const s = state.current;
+function handlePracticeAnswer(optionId) {
+  const puzzleArea = document.getElementById("puzzle-area");
+  const p = state.practice;
+  const s = p.current;
   const chosen = s.options.find((o) => o.id === optionId);
   const wasCorrect = !!chosen.correct;
 
-  // lock all option buttons, mark correct/incorrect
-  el.puzzleArea.querySelectorAll(".option-btn").forEach((btn) => {
-    btn.disabled = true;
-    const opt = s.options.find((o) => o.id === btn.dataset.optionId);
-    if (opt.correct) {
-      btn.classList.add("correct");
-    } else if (btn.dataset.optionId === optionId) {
-      btn.classList.add("incorrect");
-    }
-  });
+  lockOptions(puzzleArea, s, optionId);
 
-  state.stats.total += 1;
+  p.stats.total += 1;
   if (wasCorrect) {
-    state.stats.correct += 1;
-    state.stats.streak += 1;
-    state.stats.bestStreak = Math.max(state.stats.bestStreak, state.stats.streak);
+    p.stats.correct += 1;
+    p.stats.streak += 1;
+    p.stats.bestStreak = Math.max(p.stats.bestStreak, p.stats.streak);
   } else {
-    state.stats.streak = 0;
+    p.stats.streak = 0;
   }
-  saveStats();
-  renderStats();
+  saveJSON(PRACTICE_STATS_KEY, p.stats);
+  recordAttempt("practice", s, chosen);
 
-  const refsHtml = (s.rules_refs || [])
-    .map((ref) => `<span class="rule-ref">${escapeHtml(ref)}</span>`)
-    .join("");
+  const streakEl = document.getElementById("stat-streak");
+  const scoreEl = document.getElementById("stat-score");
+  const totalEl = document.getElementById("stat-total");
+  const bestEl = document.getElementById("stat-best");
+  if (streakEl) streakEl.textContent = p.stats.streak;
+  if (scoreEl) scoreEl.textContent = p.stats.correct;
+  if (totalEl) totalEl.textContent = p.stats.total;
+  if (bestEl) bestEl.textContent = p.stats.bestStreak;
 
   const revealSlot = document.getElementById("reveal-slot");
-  revealSlot.innerHTML = `
-    <div class="reveal">
-      <div class="reveal-verdict ${wasCorrect ? "correct" : "incorrect"}">
-        ${wasCorrect ? "Correct." : "Not quite."}
-      </div>
-      <p class="reveal-text">${escapeHtml(s.reveal)}</p>
-      ${refsHtml ? `<div class="rules-refs">${refsHtml}</div>` : ""}
-      <button class="next-btn" id="next-btn">Next puzzle →</button>
-    </div>
-  `;
-  document.getElementById("next-btn").addEventListener("click", nextScenario);
+  revealSlot.innerHTML = revealHtml(s, wasCorrect, `<button class="next-btn" id="next-btn">Next puzzle →</button>`);
+  document.getElementById("next-btn").addEventListener("click", practiceNext);
   revealSlot.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
+// ---------- daily view ----------
+
+function renderDailyView() {
+  const today = todayStr();
+  const ds = state.daily.dailyState;
+  const scenario = dailyScenarioFor(today);
+
+  root.innerHTML = `
+    <section class="daily-header">
+      <div>
+        <div class="daily-date">${today}</div>
+      </div>
+      <div class="daily-streaks">
+        <div class="stat"><span class="stat-value">${ds.dailyStreak}</span><span class="stat-label">Streak</span></div>
+        <div class="stat"><span class="stat-value">${ds.bestDailyStreak}</span><span class="stat-label">Best</span></div>
+      </div>
+    </section>
+    <section id="puzzle-area" class="puzzle-area"></section>
+  `;
+
+  const puzzleArea = document.getElementById("puzzle-area");
+  if (!scenario) {
+    puzzleArea.innerHTML = `<div class="empty-state">Puzzle bank still loading…</div>`;
+    return;
+  }
+
+  puzzleArea.innerHTML = scenarioBodyHtml(scenario);
+
+  const alreadyDone = ds.lastCompletedDate === today && ds.lastResult;
+  if (alreadyDone) {
+    lockOptions(puzzleArea, scenario, ds.lastResult.chosenId);
+    const revealSlot = document.getElementById("reveal-slot");
+    revealSlot.innerHTML = revealHtml(
+      scenario,
+      ds.lastResult.correct,
+      `<div class="daily-locked-note">You've already solved today's puzzle. Come back tomorrow for a new one.</div>`
+    );
+    return;
+  }
+
+  puzzleArea.querySelectorAll(".option-btn").forEach((btn) => {
+    btn.addEventListener("click", () => handleDailyAnswer(scenario, btn.dataset.optionId));
+  });
 }
 
-function setTier(tier) {
-  state.tier = tier;
-  el.tierBtns.forEach((btn) => btn.classList.toggle("active", btn.dataset.tier === tier));
-  buildPool();
-  nextScenario();
+function handleDailyAnswer(scenario, optionId) {
+  const puzzleArea = document.getElementById("puzzle-area");
+  const chosen = scenario.options.find((o) => o.id === optionId);
+  const wasCorrect = !!chosen.correct;
+  const today = todayStr();
+  const ds = state.daily.dailyState;
+
+  lockOptions(puzzleArea, scenario, optionId);
+
+  if (wasCorrect) {
+    const wasYesterday = ds.lastCompletedDate === dateStrAddDays(today, -1);
+    ds.dailyStreak = wasYesterday ? ds.dailyStreak + 1 : 1;
+    ds.bestDailyStreak = Math.max(ds.bestDailyStreak, ds.dailyStreak);
+  } else {
+    ds.dailyStreak = 0;
+  }
+  ds.lastCompletedDate = today;
+  ds.lastResult = { scenarioId: scenario.id, chosenId: optionId, correct: wasCorrect };
+  saveJSON(DAILY_STATE_KEY, ds);
+  recordAttempt("daily", scenario, chosen);
+
+  const revealSlot = document.getElementById("reveal-slot");
+  revealSlot.innerHTML = revealHtml(
+    scenario,
+    wasCorrect,
+    `<div class="daily-locked-note">Come back tomorrow for a new puzzle.</div>`
+  );
+
+  renderDailyHeaderStreaks();
 }
 
-el.tierBtns.forEach((btn) => {
-  btn.addEventListener("click", () => setTier(btn.dataset.tier));
+function renderDailyHeaderStreaks() {
+  const header = root.querySelector(".daily-streaks");
+  if (!header) return;
+  const ds = state.daily.dailyState;
+  header.innerHTML = `
+    <div class="stat"><span class="stat-value">${ds.dailyStreak}</span><span class="stat-label">Streak</span></div>
+    <div class="stat"><span class="stat-value">${ds.bestDailyStreak}</span><span class="stat-label">Best</span></div>
+  `;
+}
+
+// ---------- log view ----------
+
+function conceptList() {
+  return Array.from(new Set(state.allScenarios.map((s) => s.concept))).sort();
+}
+
+function renderLogView() {
+  root.innerHTML = `
+    <section class="log-summary" id="log-summary"></section>
+    <section class="log-controls">
+      <input type="text" id="log-search" placeholder="Search title or board text…" value="${escapeHtml(state.log.search)}" />
+      <div class="log-filters">
+        <select id="log-tier">
+          ${["all", "beginner", "intermediate", "commander"]
+            .map((t) => `<option value="${t}"${state.log.tier === t ? " selected" : ""}>${t === "all" ? "All tiers" : t}</option>`)
+            .join("")}
+        </select>
+        <select id="log-concept">
+          <option value="all"${state.log.concept === "all" ? " selected" : ""}>All concepts</option>
+          ${conceptList()
+            .map((c) => `<option value="${c}"${state.log.concept === c ? " selected" : ""}>${c.replace(/_/g, " ")}</option>`)
+            .join("")}
+        </select>
+        <select id="log-result">
+          <option value="all"${state.log.result === "all" ? " selected" : ""}>All results</option>
+          <option value="correct"${state.log.result === "correct" ? " selected" : ""}>Correct only</option>
+          <option value="incorrect"${state.log.result === "incorrect" ? " selected" : ""}>Missed only</option>
+        </select>
+        <button class="ghost-btn" id="log-clear">Clear log</button>
+      </div>
+    </section>
+    <section class="log-list" id="log-list"></section>
+  `;
+
+  document.getElementById("log-search").addEventListener("input", (e) => {
+    state.log.search = e.target.value;
+    renderLogList();
+  });
+  document.getElementById("log-tier").addEventListener("change", (e) => {
+    state.log.tier = e.target.value;
+    renderLogList();
+  });
+  document.getElementById("log-concept").addEventListener("change", (e) => {
+    state.log.concept = e.target.value;
+    renderLogList();
+  });
+  document.getElementById("log-result").addEventListener("change", (e) => {
+    state.log.result = e.target.value;
+    renderLogList();
+  });
+  document.getElementById("log-clear").addEventListener("click", () => {
+    if (window.confirm("Clear your entire puzzle history? This can't be undone.")) {
+      saveJSON(HISTORY_KEY, []);
+      renderLogSummary();
+      renderLogList();
+    }
+  });
+
+  renderLogSummary();
+  renderLogList();
+}
+
+function renderLogSummary() {
+  const summaryEl = document.getElementById("log-summary");
+  if (!summaryEl) return;
+  const history = loadHistory();
+  if (history.length === 0) {
+    summaryEl.innerHTML = `<h3>Concept mastery</h3><div class="log-summary-empty">No attempts logged yet — answer some puzzles to build your history.</div>`;
+    return;
+  }
+
+  const byConcept = {};
+  history.forEach((h) => {
+    if (!byConcept[h.concept]) byConcept[h.concept] = { seen: 0, correct: 0 };
+    byConcept[h.concept].seen += 1;
+    if (h.correct) byConcept[h.concept].correct += 1;
+  });
+
+  const rows = Object.entries(byConcept)
+    .map(([concept, v]) => ({ concept, pct: Math.round((v.correct / v.seen) * 100), seen: v.seen }))
+    .sort((a, b) => a.pct - b.pct);
+
+  summaryEl.innerHTML = `
+    <h3>Concept mastery</h3>
+    ${rows
+      .map(
+        (r) => `
+      <div class="concept-row">
+        <span class="concept-name">${r.concept.replace(/_/g, " ")}</span>
+        <div class="concept-bar-track"><div class="concept-bar-fill${r.pct < 60 ? " weak" : ""}" style="width:${r.pct}%"></div></div>
+        <span class="concept-pct">${r.pct}% (${r.seen})</span>
+      </div>`
+      )
+      .join("")}
+  `;
+}
+
+function renderLogList() {
+  const listEl = document.getElementById("log-list");
+  if (!listEl) return;
+  const { search, tier, concept, result } = state.log;
+  const q = search.trim().toLowerCase();
+
+  const filtered = loadHistory()
+    .filter((h) => (tier === "all" ? true : h.tier === tier))
+    .filter((h) => (concept === "all" ? true : h.concept === concept))
+    .filter((h) => (result === "all" ? true : result === "correct" ? h.correct : !h.correct))
+    .filter((h) => (q ? h.title.toLowerCase().includes(q) || h.boardState.toLowerCase().includes(q) : true))
+    .reverse();
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<div class="empty-state">No log entries match these filters.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = filtered
+    .map((h) => {
+      const d = new Date(h.ts);
+      const dateLabel = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+      const refsHtml = (h.rulesRefs || []).map((ref) => `<span class="rule-ref">${escapeHtml(ref)}</span>`).join("");
+      return `
+      <details class="log-row">
+        <summary>
+          <span class="log-result-icon ${h.correct ? "correct" : "incorrect"}">${h.correct ? "✓" : "✗"}</span>
+          <span class="log-row-title">${escapeHtml(h.title)}</span>
+          <span class="badge ${tierBadgeClass(h.tier)}">${h.tier}</span>
+          <span class="log-row-date">${dateLabel}</span>
+        </summary>
+        <div class="log-row-body">
+          <p class="board-state">${escapeHtml(h.boardState)}</p>
+          <div class="log-row-answer">You answered: <strong>${escapeHtml(h.chosenText)}</strong></div>
+          ${!h.correct ? `<div class="log-row-answer">Correct answer: <strong>${escapeHtml(h.correctText)}</strong></div>` : ""}
+          <p class="reveal-text">${escapeHtml(h.reveal)}</p>
+          ${refsHtml ? `<div class="rules-refs">${refsHtml}</div>` : ""}
+        </div>
+      </details>`;
+    })
+    .join("");
+}
+
+// ---------- tab wiring ----------
+
+function renderActiveTab() {
+  if (state.activeTab === "practice") renderPracticeView();
+  else if (state.activeTab === "daily") renderDailyView();
+  else if (state.activeTab === "log") renderLogView();
+}
+
+document.querySelectorAll(".tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    state.activeTab = btn.dataset.tab;
+    document.querySelectorAll(".tab-btn").forEach((b) => {
+      const active = b === btn;
+      b.classList.toggle("active", active);
+      b.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    renderActiveTab();
+  });
 });
 
+// ---------- init ----------
+
 async function init() {
-  renderStats();
   try {
     const res = await fetch("mtg-puzzle-bank.json");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     state.allScenarios = data.scenarios || [];
-    el.puzzleCount.textContent = `${state.allScenarios.length} scenarios loaded`;
-    buildPool();
-    nextScenario();
+    puzzleCountEl.textContent = `${state.allScenarios.length} scenarios loaded`;
+    renderActiveTab();
   } catch (err) {
-    el.puzzleArea.innerHTML = `<div class="empty-state">Couldn't load puzzle bank: ${escapeHtml(err.message)}</div>`;
+    root.innerHTML = `<div class="empty-state">Couldn't load puzzle bank: ${escapeHtml(err.message)}</div>`;
     console.error(err);
   }
 }

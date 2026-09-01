@@ -45,6 +45,33 @@ body {
   font-size: 0.95rem;
 }
 
+.tabs {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0 1rem;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  color: var(--text);
+}
+
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 .app-main {
   flex: 1;
   width: 100%;
@@ -289,4 +316,211 @@ body {
   color: var(--text-dim);
   font-size: 0.8rem;
   padding: 1rem;
+}
+
+/* Daily mode */
+
+.daily-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1.1rem;
+}
+
+.daily-date {
+  font-weight: 700;
+}
+
+.daily-streaks {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.daily-locked-note {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+/* Log view */
+
+.log-summary {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+}
+
+.log-summary h3 {
+  margin: 0 0 0.6rem;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.log-summary-empty {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.concept-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  padding: 0.3rem 0;
+}
+
+.concept-name {
+  flex: 1;
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+.concept-bar-track {
+  flex: 1.5;
+  height: 6px;
+  background: var(--bg-panel-raised);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.concept-bar-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.concept-bar-fill.weak {
+  background: var(--bad);
+}
+
+.concept-pct {
+  width: 3.2rem;
+  text-align: right;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+}
+
+.log-controls input[type="text"] {
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.55rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.log-filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.log-filters select {
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+
+.ghost-btn {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.ghost-btn:hover {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.log-row {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.15rem 0.9rem;
+}
+
+.log-row summary {
+  cursor: pointer;
+  padding: 0.65rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.88rem;
+  list-style: none;
+}
+
+.log-row summary::-webkit-details-marker {
+  display: none;
+}
+
+.log-result-icon {
+  font-weight: 700;
+  width: 1.1rem;
+  text-align: center;
+}
+
+.log-result-icon.correct { color: var(--good); }
+.log-result-icon.incorrect { color: var(--bad); }
+
+.log-row-title {
+  flex: 1;
+  color: var(--text);
+}
+
+.log-row-date {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.log-row-body {
+  padding: 0 0 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.7rem;
+}
+
+.log-row-answer {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.log-row-answer strong {
+  color: var(--text);
+  font-weight: 600;
 }
