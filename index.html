@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Priority Pass — MTG Stack Trainer</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Priority Pass</h1>
+    <p class="tagline">Train the stack. Earn priority.</p>
+  </header>
+
+  <main class="app-main">
+    <section class="controls" aria-label="Puzzle filters and stats">
+      <div class="tier-filter" role="group" aria-label="Difficulty tier">
+        <button class="tier-btn active" data-tier="all">All</button>
+        <button class="tier-btn" data-tier="beginner">Beginner</button>
+        <button class="tier-btn" data-tier="intermediate">Intermediate</button>
+        <button class="tier-btn" data-tier="commander">Commander</button>
+      </div>
+      <div class="stats" aria-live="polite">
+        <div class="stat">
+          <span class="stat-value" id="stat-streak">0</span>
+          <span class="stat-label">Streak</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="stat-score">0</span>
+          <span class="stat-label">Correct</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="stat-total">0</span>
+          <span class="stat-label">Seen</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="stat-best">0</span>
+          <span class="stat-label">Best streak</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="puzzle-area" class="puzzle-area">
+      <div id="loading" class="loading">Loading puzzle bank…</div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span id="puzzle-count"></span>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
