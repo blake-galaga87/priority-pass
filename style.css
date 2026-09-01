@@ -50,6 +50,7 @@ body {
   justify-content: center;
   gap: 0.5rem;
   padding: 0 1rem;
+  overflow-x: auto;
 }
 
 .tab-btn {
@@ -61,6 +62,8 @@ body {
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .tab-btn:hover {
@@ -385,6 +388,243 @@ body {
 .deck-meta {
   color: var(--text-dim);
   font-size: 0.82rem;
+}
+
+/* Fogged Card view */
+
+.fogged-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.fogged-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1.1rem;
+}
+
+.fogged-guesses {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.fogged-guesses .dim {
+  color: var(--text-dim);
+  font-weight: 500;
+  font-size: 0.8rem;
+}
+
+.fogged-card-frame {
+  display: flex;
+  justify-content: center;
+}
+
+.fogged-image-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-panel-raised);
+  aspect-ratio: 488 / 680;
+}
+
+.fogged-image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: filter 0.4s ease;
+}
+
+.fogged-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+}
+
+.fogged-chip {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+}
+
+.fogged-chip-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.fogged-chip-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.fogged-chip-value.hidden-value {
+  color: var(--text-dim);
+  font-weight: 400;
+  letter-spacing: 0.15em;
+}
+
+.fogged-chip.revealed {
+  border-color: var(--accent-dim);
+}
+
+.question-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.5rem;
+}
+
+.question-btn {
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.6rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.35;
+}
+
+.question-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.question-btn:disabled {
+  cursor: default;
+}
+
+.question-btn.answered-yes {
+  border-color: var(--good);
+  background: #16321f;
+  color: var(--good);
+}
+
+.question-btn.answered-no {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.name-guess-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.name-guess-row input[type="text"] {
+  flex: 1;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.name-guess-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.name-guess-chip {
+  font-size: 0.75rem;
+  color: var(--bad);
+  text-decoration: line-through;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+}
+
+.fogged-banner {
+  text-align: center;
+  padding: 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.fogged-banner.win {
+  background: #16321f;
+  border-color: var(--good);
+}
+
+.fogged-banner.loss {
+  background: #331a1a;
+  border-color: var(--bad);
+}
+
+.fogged-banner h3 {
+  margin: 0 0 0.3rem;
+}
+
+.fogged-share-btn {
+  margin-top: 0.7rem;
+  background: var(--accent);
+  color: #0d0f16;
+  border: none;
+  font-weight: 700;
+  padding: 0.55rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.fogged-stats-row {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.fogged-credit {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+}
+
+.fogged-credit a {
+  color: var(--text-dim);
+}
+
+.trophy-case {
+  display: flex;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding-bottom: 0.4rem;
+}
+
+.trophy-item {
+  flex: 0 0 auto;
+  width: 72px;
+  text-align: center;
+}
+
+.trophy-item img {
+  width: 72px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.trophy-item .trophy-guesses {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  margin-top: 0.2rem;
 }
 
 /* Log view */

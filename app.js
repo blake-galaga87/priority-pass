@@ -6,6 +6,13 @@ const HISTORY_KEY = "priority-pass:history";
 const HISTORY_LIMIT = 1000;
 const DECK_KEY = "priority-pass:deck";
 const DECK_STATS_KEY = "priority-pass:deck-stats";
+const FOGGED_STATE_KEY = "priority-pass:fogged-state";
+const FOGGED_STATS_KEY = "priority-pass:fogged-stats";
+const FOGGED_TROPHIES_KEY = "priority-pass:fogged-trophies";
+const FOGGED_MAX_GUESSES = 10;
+const FOGGED_MAX_BLUR_PX = 22;
+const FOGGED_SEARCH_QUERY = "legal:commander -is:funny game:paper";
+const FOGGED_TROPHY_LIMIT = 200;
 
 function loadJSON(key, fallback) {
   try {
@@ -74,6 +81,18 @@ function parseDecklist(text) {
     if (line.length > 1) names.add(line);
   });
   return Array.from(names);
+}
+
+function loadFoggedState() {
+  return loadJSON(FOGGED_STATE_KEY, null);
+}
+
+function loadFoggedStats() {
+  return loadJSON(FOGGED_STATS_KEY, { dailyStreak: 0, bestStreak: 0, totalSolved: 0, bestGuesses: null });
+}
+
+function loadFoggedTrophies() {
+  return loadJSON(FOGGED_TROPHIES_KEY, []);
 }
 
 function scenarioMentionsDeck(s, cardNamesLower) {
@@ -206,6 +225,7 @@ const state = {
   daily: { dailyState: loadDailyState() },
   log: { search: "", tier: "all", concept: "all", result: "all" },
   deck: { ...loadDeck(), pool: [], poolIndex: 0, current: null, stats: loadDeckStats() },
+  fogged: { gs: null },
 };
 
 const root = document.getElementById("view-root");
@@ -700,6 +720,421 @@ function handleDeckAnswer(optionId) {
   revealSlot.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
+// ---------- fogged card: question bank ----------
+
+function hasNumericPower(card) {
+  return typeof card.power === "string" && card.power.trim() !== "" && /^-?\d+(\.\d+)?$/.test(card.power.trim());
+}
+
+function isLand(card) {
+  return card.type_line.includes("Land");
+}
+
+const FOGGED_QUESTIONS = [
+  { id: "q_permanent", text: "Is it a permanent?", region: ["type_line"], applicable: () => true, check: (c) => !/(Instant|Sorcery)/.test(c.type_line) },
+  { id: "q_creature", text: "Is it a creature?", region: ["type_line", "pt_box"], applicable: () => true, check: (c) => c.type_line.includes("Creature") },
+  { id: "q_enchantment", text: "Is it an enchantment?", region: ["type_line"], applicable: () => true, check: (c) => c.type_line.includes("Enchantment") },
+  { id: "q_sorcery", text: "Is it a sorcery?", region: ["type_line"], applicable: () => true, check: (c) => c.type_line.includes("Sorcery") },
+  { id: "q_instant", text: "Is it an instant?", region: ["type_line"], applicable: () => true, check: (c) => c.type_line.includes("Instant") },
+  { id: "q_land", text: "Is it a land?", region: ["type_line"], applicable: () => true, check: (c) => c.type_line.includes("Land") },
+  { id: "q_artifact", text: "Is it an artifact?", region: ["type_line"], applicable: () => true, check: (c) => c.type_line.includes("Artifact") },
+  { id: "q_multicolor", text: "Is it multicolored?", region: ["mana_cost"], applicable: () => true, check: (c) => c.colors.length > 1 },
+  { id: "q_white", text: "Is it white?", region: ["mana_cost"], applicable: () => true, check: (c) => c.colors.includes("W") },
+  { id: "q_blue", text: "Is it blue?", region: ["mana_cost"], applicable: () => true, check: (c) => c.colors.includes("U") },
+  { id: "q_black", text: "Is it black?", region: ["mana_cost"], applicable: () => true, check: (c) => c.colors.includes("B") },
+  { id: "q_red", text: "Is it red?", region: ["mana_cost"], applicable: () => true, check: (c) => c.colors.includes("R") },
+  { id: "q_green", text: "Is it green?", region: ["mana_cost"], applicable: () => true, check: (c) => c.colors.includes("G") },
+  { id: "q_colorless", text: "Is it colorless?", region: ["mana_cost"], applicable: () => true, check: (c) => c.colors.length === 0 },
+  { id: "q_cmc4", text: "Is its mana value 4 or less?", region: ["mana_cost"], applicable: (c) => !isLand(c), check: (c) => c.cmc <= 4 },
+  { id: "q_cmc3", text: "Is its mana value 3 or less?", region: ["mana_cost"], applicable: (c) => !isLand(c), check: (c) => c.cmc <= 3 },
+  { id: "q_power4", text: "Is its power 4 or greater?", region: ["pt_box"], applicable: (c) => hasNumericPower(c), check: (c) => parseFloat(c.power) >= 4 },
+  { id: "q_keyword", text: "Does it have a keyword ability?", region: ["keywords"], applicable: () => true, check: (c) => c.keywords.length > 0 },
+  { id: "q_rare", text: "Is it rare or mythic?", region: ["rarity"], applicable: () => true, check: (c) => c.rarity === "rare" || c.rarity === "mythic" },
+];
+
+const FOGGED_REGION_APPLICABLE = {
+  type_line: () => true,
+  mana_cost: () => true,
+  pt_box: (c) => c.power !== undefined && c.power !== null,
+  keywords: () => true,
+  rarity: () => true,
+};
+
+function foggedApplicableQuestions(card) {
+  return FOGGED_QUESTIONS.filter((q) => q.applicable(card));
+}
+
+function foggedApplicableRegions(card) {
+  return Object.keys(FOGGED_REGION_APPLICABLE).filter((r) => FOGGED_REGION_APPLICABLE[r](card));
+}
+
+// ---------- fogged card: Scryfall fetch ----------
+
+function foggedField(raw, field) {
+  if (raw[field] !== undefined) return raw[field];
+  if (raw.card_faces && raw.card_faces[0] && raw.card_faces[0][field] !== undefined) return raw.card_faces[0][field];
+  return undefined;
+}
+
+function normalizeCard(raw) {
+  const imageUris = foggedField(raw, "image_uris");
+  return {
+    id: raw.id,
+    name: raw.name,
+    mana_cost: foggedField(raw, "mana_cost") || "",
+    cmc: typeof raw.cmc === "number" ? raw.cmc : 0,
+    type_line: foggedField(raw, "type_line") || "",
+    colors: foggedField(raw, "colors") || [],
+    power: foggedField(raw, "power"),
+    toughness: foggedField(raw, "toughness"),
+    rarity: raw.rarity,
+    keywords: raw.keywords || [],
+    image_url: imageUris ? imageUris.normal : null,
+    scryfall_uri: raw.scryfall_uri,
+  };
+}
+
+async function fetchDailyFoggedCard(dateStr) {
+  const seed = hashStr(`fogged:${dateStr}`);
+  const baseUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(FOGGED_SEARCH_QUERY)}&order=name&unique=cards`;
+
+  const page1Res = await fetch(`${baseUrl}&page=1`);
+  if (!page1Res.ok) throw new Error(`Scryfall search failed (HTTP ${page1Res.status})`);
+  const page1 = await page1Res.json();
+  if (!page1.data || page1.data.length === 0) throw new Error("Scryfall search returned no cards");
+
+  const total = page1.total_cards;
+  const idx = seed % total;
+  const pageSize = page1.data.length;
+  const pageNum = Math.floor(idx / pageSize) + 1;
+  const offset = idx % pageSize;
+
+  let raw;
+  if (pageNum === 1) {
+    raw = page1.data[offset];
+  } else {
+    const pageRes = await fetch(`${baseUrl}&page=${pageNum}`);
+    if (!pageRes.ok) throw new Error(`Scryfall search page ${pageNum} failed (HTTP ${pageRes.status})`);
+    const pageData = await pageRes.json();
+    raw = pageData.data[offset];
+  }
+  if (!raw) throw new Error("Could not resolve today's card from Scryfall results");
+  return normalizeCard(raw);
+}
+
+// ---------- fogged card: name matching ----------
+
+function normalizeGuess(str) {
+  return str
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function nameMatches(guess, cardName) {
+  const g = normalizeGuess(guess);
+  if (!g) return false;
+  const fullName = normalizeGuess(cardName);
+  if (g === fullName) return true;
+  const frontFace = normalizeGuess(cardName.split("//")[0]);
+  return g === frontFace;
+}
+
+// ---------- fogged card: state helpers ----------
+
+function foggedNewGameState(dateStr, card) {
+  return {
+    date: dateStr,
+    card,
+    guessesUsed: 0,
+    answers: {}, // questionId -> true/false
+    revealedRegions: [],
+    nameGuesses: [], // wrong guesses only
+    guessLog: [], // 'yes' | 'no' | 'name-wrong' | 'name-win'
+    solved: false,
+    lost: false,
+  };
+}
+
+function foggedSaveState(gs) {
+  saveJSON(FOGGED_STATE_KEY, gs);
+}
+
+function foggedRevealFraction(gs) {
+  const applicableRegions = foggedApplicableRegions(gs.card);
+  const regionFraction = applicableRegions.length ? gs.revealedRegions.length / applicableRegions.length : 0;
+  const guessFraction = gs.guessesUsed / FOGGED_MAX_GUESSES;
+  return Math.min(1, 0.15 * guessFraction + 0.85 * regionFraction);
+}
+
+function foggedBlurPx(gs) {
+  if (gs.solved || gs.lost) return 0;
+  return FOGGED_MAX_BLUR_PX * (1 - foggedRevealFraction(gs));
+}
+
+function foggedShareText(gs) {
+  const emojiFor = (g) => (g === "yes" ? "🟩" : g === "no" ? "⬜" : g === "name-win" ? "🟨" : "🟦");
+  const grid = gs.guessLog.map(emojiFor).join("");
+  const resultLine = gs.solved ? `${gs.guessesUsed}/${FOGGED_MAX_GUESSES}` : `X/${FOGGED_MAX_GUESSES}`;
+  return `Priority Pass — Fogged Card (${gs.date})\n${resultLine}\n${grid}`;
+}
+
+// ---------- fogged card: view ----------
+
+async function renderFoggedView() {
+  const today = todayStr();
+  let gs = loadFoggedState();
+
+  if (!gs || gs.date !== today) {
+    root.innerHTML = `
+      <div class="loading">Fetching today's card from Scryfall…</div>
+    `;
+    try {
+      const card = await fetchDailyFoggedCard(today);
+      gs = foggedNewGameState(today, card);
+      foggedSaveState(gs);
+    } catch (err) {
+      root.innerHTML = `
+        <div class="empty-state">
+          Couldn't load today's Fogged Card: ${escapeHtml(err.message)}<br />
+          <button class="next-btn" id="fogged-retry" style="margin-top:0.8rem;">Retry</button>
+        </div>
+      `;
+      const retryBtn = document.getElementById("fogged-retry");
+      if (retryBtn) retryBtn.addEventListener("click", () => renderFoggedView());
+      console.error(err);
+      return;
+    }
+  }
+
+  state.fogged.gs = gs;
+  renderFoggedGame();
+}
+
+function renderFoggedGame() {
+  const gs = state.fogged.gs;
+  const stats = loadFoggedStats();
+  const guessesLeft = FOGGED_MAX_GUESSES - gs.guessesUsed;
+  const applicableQuestions = foggedApplicableQuestions(gs.card);
+  const applicableRegions = foggedApplicableRegions(gs.card);
+
+  const chipHtml = (region, label, value) => {
+    if (!applicableRegions.includes(region)) return "";
+    const revealed = gs.solved || gs.lost || gs.revealedRegions.includes(region);
+    return `
+      <div class="fogged-chip${revealed ? " revealed" : ""}">
+        <span class="fogged-chip-label">${label}</span>
+        <span class="fogged-chip-value${revealed ? "" : " hidden-value"}">${revealed ? escapeHtml(value) : "?????"}</span>
+      </div>
+    `;
+  };
+
+  const manaCostDisplay = gs.card.mana_cost ? `${gs.card.mana_cost} (MV ${gs.card.cmc})` : `No mana cost (MV ${gs.card.cmc})`;
+  const ptDisplay = `${gs.card.power}/${gs.card.toughness}`;
+  const keywordsDisplay = gs.card.keywords.length ? gs.card.keywords.join(", ") : "None";
+  const rarityDisplay = gs.card.rarity ? gs.card.rarity[0].toUpperCase() + gs.card.rarity.slice(1) : "";
+
+  const gameOver = gs.solved || gs.lost;
+  const blur = foggedBlurPx(gs);
+
+  const questionsHtml = applicableQuestions
+    .map((q) => {
+      const answer = gs.answers[q.id];
+      let cls = "question-btn";
+      if (answer === true) cls += " answered-yes";
+      else if (answer === false) cls += " answered-no";
+      const disabled = gameOver || answer !== undefined || guessesLeft <= 0;
+      return `<button class="${cls}" data-qid="${q.id}" ${disabled ? "disabled" : ""}>${escapeHtml(q.text)}</button>`;
+    })
+    .join("");
+
+  const nameHistoryHtml = gs.nameGuesses.length
+    ? `<div class="name-guess-history">${gs.nameGuesses.map((n) => `<span class="name-guess-chip">${escapeHtml(n)}</span>`).join("")}</div>`
+    : "";
+
+  let bannerHtml = "";
+  if (gs.solved) {
+    bannerHtml = `
+      <div class="fogged-banner win">
+        <h3>🏆 Solved in ${gs.guessesUsed}/${FOGGED_MAX_GUESSES} guesses!</h3>
+        <div>${escapeHtml(gs.card.name)}</div>
+        <button class="fogged-share-btn" id="fogged-share">Copy result</button>
+      </div>
+    `;
+  } else if (gs.lost) {
+    bannerHtml = `
+      <div class="fogged-banner loss">
+        <h3>Out of guesses</h3>
+        <div>The card was <strong>${escapeHtml(gs.card.name)}</strong></div>
+        <button class="fogged-share-btn" id="fogged-share">Copy result</button>
+      </div>
+    `;
+  }
+
+  const trophies = loadFoggedTrophies();
+  const trophyHtml = trophies.length
+    ? `
+      <section>
+        <h3 style="font-size:0.9rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin:0 0 0.6rem;">Trophy case</h3>
+        <div class="trophy-case">
+          ${trophies
+            .slice()
+            .reverse()
+            .map(
+              (t) => `
+            <div class="trophy-item">
+              <img src="${t.imageUrl}" alt="${escapeHtml(t.name)}" title="${escapeHtml(t.name)}" />
+              <div class="trophy-guesses">${t.guessesUsed}/${FOGGED_MAX_GUESSES}</div>
+            </div>`
+            )
+            .join("")}
+        </div>
+      </section>
+    `
+    : "";
+
+  root.innerHTML = `
+    <div class="fogged-layout">
+      <section class="fogged-topbar">
+        <div class="fogged-guesses">${Math.max(0, guessesLeft)} <span class="dim">guesses left</span></div>
+        <div class="fogged-stats-row">
+          <div class="stat"><span class="stat-value">${stats.dailyStreak}</span><span class="stat-label">Streak</span></div>
+          <div class="stat"><span class="stat-value">${stats.bestStreak}</span><span class="stat-label">Best</span></div>
+        </div>
+      </section>
+
+      <div class="fogged-card-frame">
+        <div class="fogged-image-wrap">
+          ${gs.card.image_url ? `<img id="fogged-img" src="${gs.card.image_url}" alt="Mystery card" style="filter: blur(${blur}px);" />` : `<div class="empty-state">No image available</div>`}
+        </div>
+      </div>
+
+      <div class="fogged-chips">
+        ${chipHtml("type_line", "Type line", gs.card.type_line)}
+        ${chipHtml("mana_cost", "Mana cost", manaCostDisplay)}
+        ${chipHtml("pt_box", "Power/Toughness", ptDisplay)}
+        ${chipHtml("keywords", "Keywords", keywordsDisplay)}
+        ${chipHtml("rarity", "Rarity", rarityDisplay)}
+      </div>
+
+      ${bannerHtml}
+
+      ${
+        !gameOver
+          ? `
+      <section>
+        <h3 style="font-size:0.9rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin:0 0 0.6rem;">Ask a question (costs 1 guess)</h3>
+        <div class="question-grid">${questionsHtml}</div>
+      </section>
+
+      <section class="deck-input">
+        <label for="fogged-name-input">Guess the card name (costs 1 guess)</label>
+        <div class="name-guess-row">
+          <input type="text" id="fogged-name-input" placeholder="Card name…" ${guessesLeft <= 0 ? "disabled" : ""} />
+          <button class="next-btn" id="fogged-name-submit" ${guessesLeft <= 0 ? "disabled" : ""}>Guess</button>
+        </div>
+        ${nameHistoryHtml}
+      </section>
+      `
+          : ""
+      }
+
+      ${trophyHtml}
+
+      <div class="fogged-credit">Card data and images via <a href="https://scryfall.com" target="_blank" rel="noopener">Scryfall</a>.</div>
+    </div>
+  `;
+
+  if (!gameOver) {
+    root.querySelectorAll(".question-btn").forEach((btn) => {
+      btn.addEventListener("click", () => handleFoggedQuestion(btn.dataset.qid));
+    });
+    const nameInput = document.getElementById("fogged-name-input");
+    const nameSubmit = document.getElementById("fogged-name-submit");
+    const submitName = () => handleFoggedNameGuess(nameInput.value);
+    nameSubmit.addEventListener("click", submitName);
+    nameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submitName();
+    });
+  }
+
+  const shareBtn = document.getElementById("fogged-share");
+  if (shareBtn) {
+    shareBtn.addEventListener("click", async () => {
+      const text = foggedShareText(gs);
+      try {
+        await navigator.clipboard.writeText(text);
+        shareBtn.textContent = "Copied!";
+        setTimeout(() => {
+          shareBtn.textContent = "Copy result";
+        }, 1500);
+      } catch (err) {
+        console.warn("Clipboard write failed, falling back to prompt", err);
+        window.prompt("Copy your result:", text);
+      }
+    });
+  }
+}
+
+function foggedCheckEndState(gs) {
+  if (!gs.solved && gs.guessesUsed >= FOGGED_MAX_GUESSES) {
+    gs.lost = true;
+    const stats = loadFoggedStats();
+    stats.dailyStreak = 0;
+    saveJSON(FOGGED_STATS_KEY, stats);
+  }
+}
+
+function handleFoggedQuestion(qid) {
+  const gs = state.fogged.gs;
+  if (gs.solved || gs.lost || gs.answers[qid] !== undefined || gs.guessesUsed >= FOGGED_MAX_GUESSES) return;
+
+  const q = FOGGED_QUESTIONS.find((x) => x.id === qid);
+  const answer = q.check(gs.card);
+  gs.answers[qid] = answer;
+  gs.guessesUsed += 1;
+  gs.guessLog.push(answer ? "yes" : "no");
+  if (answer) {
+    q.region.forEach((r) => {
+      if (!gs.revealedRegions.includes(r)) gs.revealedRegions.push(r);
+    });
+  }
+  foggedCheckEndState(gs);
+  foggedSaveState(gs);
+  renderFoggedGame();
+}
+
+function handleFoggedNameGuess(rawGuess) {
+  const gs = state.fogged.gs;
+  const guess = (rawGuess || "").trim();
+  if (!guess || gs.solved || gs.lost || gs.guessesUsed >= FOGGED_MAX_GUESSES) return;
+
+  gs.guessesUsed += 1;
+  const correct = nameMatches(guess, gs.card.name);
+  if (correct) {
+    gs.solved = true;
+    gs.guessLog.push("name-win");
+    const stats = loadFoggedStats();
+    stats.dailyStreak += 1;
+    stats.bestStreak = Math.max(stats.bestStreak, stats.dailyStreak);
+    stats.totalSolved += 1;
+    stats.bestGuesses = stats.bestGuesses === null ? gs.guessesUsed : Math.min(stats.bestGuesses, gs.guessesUsed);
+    saveJSON(FOGGED_STATS_KEY, stats);
+
+    const trophies = loadFoggedTrophies();
+    trophies.push({ date: gs.date, name: gs.card.name, imageUrl: gs.card.image_url, guessesUsed: gs.guessesUsed });
+    if (trophies.length > FOGGED_TROPHY_LIMIT) trophies.splice(0, trophies.length - FOGGED_TROPHY_LIMIT);
+    saveJSON(FOGGED_TROPHIES_KEY, trophies);
+  } else {
+    gs.nameGuesses.push(guess);
+    gs.guessLog.push("name-wrong");
+    foggedCheckEndState(gs);
+  }
+  foggedSaveState(gs);
+  renderFoggedGame();
+}
+
 // ---------- tab wiring ----------
 
 function renderActiveTab() {
@@ -707,6 +1142,7 @@ function renderActiveTab() {
   else if (state.activeTab === "daily") renderDailyView();
   else if (state.activeTab === "log") renderLogView();
   else if (state.activeTab === "deck") renderDeckView();
+  else if (state.activeTab === "fogged") renderFoggedView();
 }
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {
