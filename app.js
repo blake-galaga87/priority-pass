@@ -900,12 +900,44 @@ function foggedExtractIntent(qText) {
 }
 
 // Returns true/false when answerable, or null when the question couldn't be parsed.
+// Rules-category words (triggered/activated/static/keyword ability) never
+// literally appear in a card's own oracle text — cards say "Whenever ..." or
+// "{cost}: effect", not the word "triggered" or "activated" itself. A plain
+// substring match against these would always come back false, so they need
+// their own detection based on how MTG actually templates each category.
+function foggedHasTriggeredAbility(card) {
+  const text = card.oracle_text || "";
+  return /\b(when|whenever)\b/i.test(text) || /at the beginning of/i.test(text);
+}
+
+function foggedHasActivatedAbility(card) {
+  const text = card.oracle_text || "";
+  return text.split("\n").some((line) => /^[^:]{1,40}:/.test(line.trim()));
+}
+
+function foggedHasStaticAbility(card) {
+  const text = (card.oracle_text || "").trim();
+  if (!text) return false;
+  return !foggedHasTriggeredAbility(card) && !foggedHasActivatedAbility(card);
+}
+
+const FOGGED_RULES_JARGON = {
+  triggered: foggedHasTriggeredAbility,
+  trigger: foggedHasTriggeredAbility,
+  activated: foggedHasActivatedAbility,
+  static: foggedHasStaticAbility,
+  keyword: (c) => (c.keywords || []).length > 0,
+  keywords: (c) => (c.keywords || []).length > 0,
+};
+
 function answerCustomQuestion(card, qText) {
   const intent = foggedExtractIntent(qText);
   if (!intent) return null;
   let phrase = intent.phrase.replace(/\s+(ability|keyword)s?$/, "").trim();
   if (!phrase) return null;
   phrase = FOGGED_KEYWORD_ALIASES[phrase] || phrase;
+
+  if (phrase in FOGGED_RULES_JARGON) return FOGGED_RULES_JARGON[phrase](card);
 
   const colorWords = { white: "W", blue: "U", black: "B", red: "R", green: "G" };
   if (phrase in colorWords) return card.colors.includes(colorWords[phrase]);
