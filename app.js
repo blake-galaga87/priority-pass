@@ -834,6 +834,14 @@ async function fetchDailyFoggedCard(dateStr) {
   return normalizeCard(raw);
 }
 
+async function fetchRandomFoggedCard() {
+  const url = `https://api.scryfall.com/cards/random?q=${encodeURIComponent(FOGGED_SEARCH_QUERY)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Scryfall random-card fetch failed (HTTP ${res.status})`);
+  const raw = await res.json();
+  return normalizeCard(raw);
+}
+
 // ---------- fogged card: name matching ----------
 
 function normalizeGuess(str) {
@@ -855,7 +863,7 @@ function nameMatches(guess, cardName) {
 
 // ---------- fogged card: state helpers ----------
 
-function foggedNewGameState(dateStr, card) {
+function foggedNewGameState(dateStr, card, isBonus) {
   return {
     date: dateStr,
     card,
@@ -866,6 +874,10 @@ function foggedNewGameState(dateStr, card) {
     guessLog: [], // 'yes' | 'no' | 'name-wrong' | 'name-win'
     solved: false,
     lost: false,
+    // Bonus rounds (started via "New Card") let you replay freely, but only
+    // the one true daily card drives the daily streak — otherwise the streak
+    // would just be however many times you felt like clicking the button.
+    isBonus: !!isBonus,
   };
 }
 
@@ -885,7 +897,8 @@ function foggedShareText(gs) {
   const emojiFor = (g) => (g === "yes" ? "🟩" : g === "no" ? "⬜" : g === "name-win" ? "🟨" : "🟦");
   const grid = gs.guessLog.map(emojiFor).join("");
   const resultLine = gs.solved ? `${gs.guessesUsed}/${FOGGED_MAX_GUESSES}` : `X/${FOGGED_MAX_GUESSES}`;
-  return `Priority Pass — Guess the Card (${gs.date})\n${resultLine}\n${grid}`;
+  const label = gs.isBonus ? "Guess the Card (bonus round)" : "Guess the Card";
+  return `Priority Pass — ${label} (${gs.date})\n${resultLine}\n${grid}`;
 }
 
 // ---------- fogged card: view ----------
@@ -900,7 +913,7 @@ async function renderFoggedView() {
     `;
     try {
       const card = await fetchDailyFoggedCard(today);
-      gs = foggedNewGameState(today, card);
+      gs = foggedNewGameState(today, card, false);
       foggedSaveState(gs);
     } catch (err) {
       root.innerHTML = `
@@ -1007,12 +1020,17 @@ function renderFoggedGame() {
   root.innerHTML = `
     <div class="fogged-layout">
       <section class="fogged-topbar">
-        <div class="fogged-guesses">${Math.max(0, guessesLeft)} <span class="dim">guesses left</span></div>
+        <div>
+          <div class="fogged-guesses">${Math.max(0, guessesLeft)} <span class="dim">guesses left</span></div>
+          ${gs.isBonus ? `<span class="badge badge-concept" style="margin-top:0.35rem;display:inline-block;">Bonus round</span>` : ""}
+        </div>
         <div class="fogged-stats-row">
           <div class="stat"><span class="stat-value">${stats.dailyStreak}</span><span class="stat-label">Streak</span></div>
           <div class="stat"><span class="stat-value">${stats.bestStreak}</span><span class="stat-label">Best</span></div>
         </div>
       </section>
+
+      <button class="ghost-btn" id="fogged-new-card" style="align-self:center;">🔄 New card (play again)</button>
 
       <div class="fogged-card-frame">
         <div class="fogged-image-wrap">
@@ -1070,6 +1088,9 @@ function renderFoggedGame() {
     });
   }
 
+  const newCardBtn = document.getElementById("fogged-new-card");
+  if (newCardBtn) newCardBtn.addEventListener("click", handleFoggedNewCard);
+
   const shareBtn = document.getElementById("fogged-share");
   if (shareBtn) {
     shareBtn.addEventListener("click", async () => {
@@ -1091,9 +1112,11 @@ function renderFoggedGame() {
 function foggedCheckEndState(gs) {
   if (!gs.solved && gs.guessesUsed >= FOGGED_MAX_GUESSES) {
     gs.lost = true;
-    const stats = loadFoggedStats();
-    stats.dailyStreak = 0;
-    saveJSON(FOGGED_STATS_KEY, stats);
+    if (!gs.isBonus) {
+      const stats = loadFoggedStats();
+      stats.dailyStreak = 0;
+      saveJSON(FOGGED_STATS_KEY, stats);
+    }
   }
 }
 
@@ -1127,8 +1150,10 @@ function handleFoggedNameGuess(rawGuess) {
     gs.solved = true;
     gs.guessLog.push("name-win");
     const stats = loadFoggedStats();
-    stats.dailyStreak += 1;
-    stats.bestStreak = Math.max(stats.bestStreak, stats.dailyStreak);
+    if (!gs.isBonus) {
+      stats.dailyStreak += 1;
+      stats.bestStreak = Math.max(stats.bestStreak, stats.dailyStreak);
+    }
     stats.totalSolved += 1;
     stats.bestGuesses = stats.bestGuesses === null ? gs.guessesUsed : Math.min(stats.bestGuesses, gs.guessesUsed);
     saveJSON(FOGGED_STATS_KEY, stats);
@@ -1144,6 +1169,27 @@ function handleFoggedNameGuess(rawGuess) {
   }
   foggedSaveState(gs);
   renderFoggedGame();
+}
+
+async function handleFoggedNewCard() {
+  root.innerHTML = `<div class="loading">Fetching a new card from Scryfall…</div>`;
+  try {
+    const card = await fetchRandomFoggedCard();
+    const gs = foggedNewGameState(todayStr(), card, true);
+    foggedSaveState(gs);
+    state.fogged.gs = gs;
+    renderFoggedGame();
+  } catch (err) {
+    root.innerHTML = `
+      <div class="empty-state">
+        Couldn't load a new card: ${escapeHtml(err.message)}<br />
+        <button class="next-btn" id="fogged-retry" style="margin-top:0.8rem;">Retry</button>
+      </div>
+    `;
+    const retryBtn = document.getElementById("fogged-retry");
+    if (retryBtn) retryBtn.addEventListener("click", handleFoggedNewCard);
+    console.error(err);
+  }
 }
 
 // ---------- tab wiring ----------
