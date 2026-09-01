@@ -1,5 +1,7 @@
 // ---------- storage helpers ----------
 
+const PUZZLE_TIERS = ["beginner", "intermediate", "commander", "expert"];
+
 const PRACTICE_STATS_KEY = "priority-pass:practice-stats";
 const DAILY_STATE_KEY = "priority-pass:daily-state";
 const HISTORY_KEY = "priority-pass:history";
@@ -269,7 +271,7 @@ function renderPracticeView() {
   root.innerHTML = `
     <section class="controls">
       <div class="tier-filter" role="group" aria-label="Difficulty tier">
-        ${["all", "beginner", "intermediate", "commander"]
+        ${["all", ...PUZZLE_TIERS]
           .map(
             (t) =>
               `<button class="tier-btn${p.tier === t ? " active" : ""}" data-tier="${t}">${
@@ -449,7 +451,7 @@ function renderLogView() {
       <input type="text" id="log-search" placeholder="Search title or board text…" value="${escapeHtml(state.log.search)}" />
       <div class="log-filters">
         <select id="log-tier">
-          ${["all", "beginner", "intermediate", "commander"]
+          ${["all", ...PUZZLE_TIERS]
             .map((t) => `<option value="${t}"${state.log.tier === t ? " selected" : ""}>${t === "all" ? "All tiers" : t}</option>`)
             .join("")}
         </select>

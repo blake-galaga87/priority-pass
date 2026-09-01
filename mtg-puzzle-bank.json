@@ -1,11 +1,12 @@
 {
   "meta": {
     "title": "Priority Pass — Puzzle Bank v1",
-    "count": 129,
+    "count": 159,
     "tiers": [
       "beginner",
       "intermediate",
-      "commander"
+      "commander",
+      "expert"
     ],
     "note": "Scenarios 1-7 correspond to the original sample set discussed in planning (The Bait, Trigger Stacking, APNAP Politics, Order of Operations, Layers Check, The Fog Bluff, The Redundant Counter). Renumbered here for a consistent index across the full bank."
   },
@@ -3630,6 +3631,851 @@
       "reveal": "CR 608.2b: a spell or ability with multiple targets is countered by the game rules only if ALL of its targets are illegal on resolution. If some remain legal, it resolves, affecting only those.",
       "rules_refs": [
         "CR 608.2b"
+      ]
+    },
+    {
+      "id": "s130",
+      "tier": "expert",
+      "concept": "layers",
+      "title": "Set P/T Beats Timestamp, But Not Counters",
+      "board_state": "A static ability sets your creature's power and toughness to 0/0 (layer 7b). It also has two +1/+1 counters (layer 7c).",
+      "options": [
+        {
+          "id": "a",
+          "text": "Its final P/T is 0/0 — counters do nothing since the set effect is applied later",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "7b (set P/T) always applies before 7c (counters) regardless of timestamp, so the counters add on top of the set value — final P/T is 2/2",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Whichever effect has the more recent timestamp wins entirely",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 613: within layer 7, sublayers are applied in fixed order (7a CDAs, 7b set P/T, 7c counters, 7d switch) regardless of timestamp. Set effects in 7b always resolve before counters in 7c get to modify the result.",
+      "rules_refs": [
+        "CR 613"
+      ]
+    },
+    {
+      "id": "s131",
+      "tier": "expert",
+      "concept": "layers",
+      "title": "Dependency Breaks the Timestamp Tie",
+      "board_state": "Effect A (newer timestamp) turns your creature into a Human. Effect B (older timestamp) says 'Humans you control get +2/+2.'",
+      "options": [
+        {
+          "id": "a",
+          "text": "B has the older timestamp, so it's already 'locked in' before A makes the creature a Human — no bonus",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "B depends on A (whether the creature counts as a Human depends on A having applied), so B is applied after A despite its older timestamp — the creature gets +2/+2",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Only the newest effect in a layer ever applies; older ones are ignored",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 613.8: when whether or how one effect applies depends on another effect having applied first, the dependent effect is applied afterward, overriding normal timestamp order.",
+      "rules_refs": [
+        "CR 613.8"
+      ]
+    },
+    {
+      "id": "s132",
+      "tier": "expert",
+      "concept": "stack_priority",
+      "title": "Split Second Doesn't Stop Triggers Already Waiting",
+      "board_state": "You control a permanent with 'Whenever a player casts a spell, that player loses 1 life.' An opponent casts a spell with split second.",
+      "options": [
+        {
+          "id": "a",
+          "text": "Your triggered ability can never go on the stack — split second locks the stack entirely",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "Split second only stops players from casting spells or activating non-mana abilities; your triggered ability still triggers and goes on the stack normally, above the split-second spell",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Your trigger is skipped entirely for that spell",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 702.61: split second stops players from casting spells or activating abilities, but it doesn't stop triggered abilities from triggering and being put on the stack.",
+      "rules_refs": [
+        "CR 702.61"
+      ]
+    },
+    {
+      "id": "s133",
+      "tier": "expert",
+      "concept": "replacement_effects",
+      "title": "One Regeneration Shield, One Save",
+      "board_state": "Your creature has a regeneration shield up. It's dealt lethal damage and is saved (tapped, removed from combat, damage removed). Later the same turn, it would be destroyed again.",
+      "options": [
+        {
+          "id": "a",
+          "text": "The shield is still up and saves it again for free",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "That shield was used up; without activating regenerate again, the creature is destroyed for real this time",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Regeneration shields never expire once created",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 701.16: regenerating a permanent consumes that shield. Each separate destroy event needs its own available shield to be replaced.",
+      "rules_refs": [
+        "CR 701.16"
+      ]
+    },
+    {
+      "id": "s134",
+      "tier": "expert",
+      "concept": "state_based_actions",
+      "title": "Cloning Your Own Legendary Creature Triggers the Legend Rule",
+      "board_state": "You control a legendary creature. You clone it, becoming a copy with the same name.",
+      "options": [
+        {
+          "id": "a",
+          "text": "Nothing happens — clones are exempt from the legend rule",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "You now control two legendary permanents with the same name — as a state-based action, you choose one to keep and put the other in the graveyard",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "The clone simply fails to copy the name to avoid the conflict",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 704.5j: the legend rule cares only about matching names among legendary permanents you control, regardless of how the duplicate name arose.",
+      "rules_refs": [
+        "CR 704.5j"
+      ]
+    },
+    {
+      "id": "s135",
+      "tier": "expert",
+      "concept": "state_based_actions",
+      "title": "Indestructible Doesn't Save a 0-Toughness Creature",
+      "board_state": "Your creature is indestructible. It gets -5/-5 from an effect, dropping its toughness to 0 or less.",
+      "options": [
+        {
+          "id": "a",
+          "text": "It survives since it's indestructible",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "Indestructible only ignores destruction from lethal damage and 'destroy' effects — 0-or-less toughness still puts it into the graveyard as a state-based action",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Indestructible prevents toughness from ever changing",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 704.5f and CR 702.12b: 0-or-less toughness is its own state-based action, unaffected by indestructible, which only stops destruction from damage or 'destroy' effects.",
+      "rules_refs": [
+        "CR 704.5f",
+        "CR 702.12b"
+      ]
+    },
+    {
+      "id": "s136",
+      "tier": "expert",
+      "concept": "triggered_abilities",
+      "title": "No Destruction, No 'Dies' Trigger",
+      "board_state": "Your creature has 'Whenever this creature dies, draw a card' and is also indestructible. An opponent casts 'Destroy target creature' targeting it.",
+      "options": [
+        {
+          "id": "a",
+          "text": "It draws you a card since the destroy spell resolved",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "Indestructible stops the destruction — the creature never dies, so the trigger never fires",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "The trigger fires, but the draw itself is prevented by indestructible",
+          "correct": false
+        }
+      ],
+      "reveal": "'Dies' means 'is put into a graveyard from the battlefield' (CR 700.4). Since indestructible prevents that from happening here, there's no death for the trigger to fire from.",
+      "rules_refs": [
+        "CR 700.4",
+        "CR 702.12b"
+      ]
+    },
+    {
+      "id": "s137",
+      "tier": "expert",
+      "concept": "combat",
+      "title": "Ninjutsu Can Remove a Spell's Only Target",
+      "board_state": "An opponent casts removal targeting your attacking creature. In response, you use Ninjutsu to return that attacker to hand and put a ninja onto the battlefield attacking.",
+      "options": [
+        {
+          "id": "a",
+          "text": "The removal spell automatically retargets the new ninja",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "The targeted creature is gone; the spell has no legal target left and doesn't resolve",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Ninjutsu can't be used in response to a spell targeting the attacker",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 608.2b: Ninjutsu returns the original attacker before the removal spell resolves, so its only target no longer exists. Spells can't retarget themselves — it simply fails to resolve.",
+      "rules_refs": [
+        "CR 608.2b"
+      ]
+    },
+    {
+      "id": "s138",
+      "tier": "expert",
+      "concept": "multiplayer_apnap",
+      "title": "Independent 'May' Triggers From Different Players",
+      "board_state": "Two creatures controlled by different players die simultaneously. Each has 'Whenever this creature dies, its controller may draw a card and lose 1 life.'",
+      "options": [
+        {
+          "id": "a",
+          "text": "Both players must make the same choice",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "APNAP determines whose trigger goes on the stack first, but each player independently chooses yes or no for their own trigger",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Only the active player's trigger exists; the other is ignored",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 603.3b/101.4: simultaneous triggers controlled by different players are ordered APNAP for stacking, but each triggered ability's optional choice is made independently by its own controller.",
+      "rules_refs": [
+        "CR 603.3b",
+        "CR 101.4"
+      ]
+    },
+    {
+      "id": "s139",
+      "tier": "expert",
+      "concept": "targeting",
+      "title": "One Target, Total Fizzle",
+      "board_state": "You cast 'Destroy target creature. You gain 2 life' (a single target). In response, that creature gains protection from the spell's color, making the target illegal.",
+      "options": [
+        {
+          "id": "a",
+          "text": "The spell still resolves for the life gain, just skips the destroy part",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "Since its only target is illegal, the entire spell doesn't resolve at all — no destruction and no life gain",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "You choose a new legal target to save the spell",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 608.2b: a spell with a single target that becomes illegal is countered by the game rules entirely. Compare a multi-target spell, where only the illegal targets are skipped and the rest still happens.",
+      "rules_refs": [
+        "CR 608.2b"
+      ]
+    },
+    {
+      "id": "s140",
+      "tier": "expert",
+      "concept": "stack_priority",
+      "title": "Mana Abilities Still Work Under Split Second",
+      "board_state": "An opponent casts a spell with split second. You want to tap a land for mana.",
+      "options": [
+        {
+          "id": "a",
+          "text": "You can't do anything, including tapping lands, until split second ends",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "Mana abilities don't use the stack and are explicitly exempt from split second's restriction — you can still tap for mana",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "You may only tap for colorless mana during split second",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 702.61: split second stops players from casting spells and activating abilities that aren't mana abilities. Mana abilities remain legal throughout.",
+      "rules_refs": [
+        "CR 702.61"
+      ]
+    },
+    {
+      "id": "s141",
+      "tier": "expert",
+      "concept": "replacement_effects",
+      "title": "Choosing an Order That Doesn't Actually Matter",
+      "board_state": "A creature enters the battlefield as a copy of another creature (one replacement effect) and also enters tapped (a second, unrelated replacement effect).",
+      "options": [
+        {
+          "id": "a",
+          "text": "You must apply 'enters tapped' first since it was set up earlier",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "You choose an order per the rules, but since the two effects don't interact, the result is identical either way — it's a copy, and it's tapped",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Only one of the two replacement effects can actually apply",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 616.1 requires choosing an order for multiple applicable replacement effects, but that choice only matters when the effects could actually interact. Here they modify unrelated aspects, so the outcome doesn't change.",
+      "rules_refs": [
+        "CR 616.1"
+      ]
+    },
+    {
+      "id": "s142",
+      "tier": "expert",
+      "concept": "combat",
+      "title": "First-Strike Damage Trigger Survives the Creature's Own Death",
+      "board_state": "Your creature has first strike and 'Whenever this creature deals combat damage, you gain 1 life.' It deals first-strike damage, and its non-first-strike, deathtouch blocker kills it back in the regular damage step.",
+      "options": [
+        {
+          "id": "a",
+          "text": "The life-gain trigger never resolves since the creature died before the trigger left the stack",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "The trigger already went on the stack when first-strike damage was dealt and resolves independently, regardless of what happens to the creature afterward",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "The trigger is removed from the stack once its source leaves the battlefield",
+          "correct": false
+        }
+      ],
+      "reveal": "Once a triggered ability is on the stack, it resolves on its own — it doesn't need its source to still exist (that's specifically the concern of leaves-the-battlefield/LKI abilities, and even those still resolve).",
+      "rules_refs": [
+        "CR 603.3"
+      ]
+    },
+    {
+      "id": "s143",
+      "tier": "expert",
+      "concept": "casting_costs_alt",
+      "title": "Convoke: Color or Generic, Your Choice",
+      "board_state": "You cast a spell with convoke costing {2}{G}. You tap a green creature to help pay.",
+      "options": [
+        {
+          "id": "a",
+          "text": "That creature can only pay the {G} in the cost, never the generic part",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "You choose — a green creature tapped for convoke can pay either the {G} or one of the generic mana",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Convoke creatures can only ever pay generic costs",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 702.51: each creature tapped for convoke pays for {1} or one mana of any of its colors, controller's choice.",
+      "rules_refs": [
+        "CR 702.51"
+      ]
+    },
+    {
+      "id": "s144",
+      "tier": "expert",
+      "concept": "casting_costs_alt",
+      "title": "Cascade Doesn't Make You Cast the Card",
+      "board_state": "You cast a spell with cascade. It exiles cards from your library until hitting a lower-mana-value nonland card.",
+      "options": [
+        {
+          "id": "a",
+          "text": "You must cast that card for free, no choice involved",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "You may cast it without paying its mana cost, or decline — either way the rest of the exiled cards then go to the bottom of your library in a random order",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "All the exiled cards are cast for free",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 702.86: cascade lets you cast the revealed card without paying its mana cost — it's optional. The remaining exiled cards go to the bottom of your library in a random order regardless of your choice.",
+      "rules_refs": [
+        "CR 702.86"
+      ]
+    },
+    {
+      "id": "s145",
+      "tier": "expert",
+      "concept": "graveyard_recursion",
+      "title": "Escape Needs Cards Besides Itself",
+      "board_state": "You want to cast a creature with Escape from your graveyard. Its escape cost requires exiling 2 other cards from your graveyard, but your graveyard only contains that creature card and nothing else.",
+      "options": [
+        {
+          "id": "a",
+          "text": "You may pay the mana cost alone and skip the exile requirement",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "You can't cast it via escape right now — there aren't enough OTHER cards in the graveyard to exile",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "You exile itself twice to make up the difference",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 702.136: escape costs specify exiling a number of other cards from your graveyard, not the escaping card itself. Without enough of them available, the cost can't be paid.",
+      "rules_refs": [
+        "CR 702.136"
+      ]
+    },
+    {
+      "id": "s146",
+      "tier": "expert",
+      "concept": "planeswalkers",
+      "title": "Partner Commanders Don't Legend-Rule Each Other",
+      "board_state": "You control two different legendary creatures, each with partner, as your commanders.",
+      "options": [
+        {
+          "id": "a",
+          "text": "Since both are commanders, the legend rule forces you to sacrifice one",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "The legend rule only cares about matching names — two partners with different names never conflict",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Partner permanents are entirely exempt from the legend rule under any circumstance",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 704.5j only triggers on matching legendary permanent names. Different partner commanders simply have different names — but note that's a 'different names' exemption, not a blanket partner exemption; two copies of the same partner legend would still conflict.",
+      "rules_refs": [
+        "CR 704.5j"
+      ]
+    },
+    {
+      "id": "s147",
+      "tier": "expert",
+      "concept": "protection_keywords",
+      "title": "Ward Triggers on Every New Targeting, Not Just Once",
+      "board_state": "A creature has Ward {2}. An opponent targets it with a spell and pays the ward cost. Later the same turn, a different opponent spell targets it again.",
+      "options": [
+        {
+          "id": "a",
+          "text": "Ward has already been paid once this turn, so it doesn't trigger again",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "Ward triggers independently every time the permanent becomes the target of a new opponent spell or ability — it's not a once-per-turn effect",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Ward only works against the first spell that ever targets it",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 702.21: ward's triggered ability triggers each time the permanent becomes the target of a spell or ability an opponent controls, with no limit on how many times per turn.",
+      "rules_refs": [
+        "CR 702.21"
+      ]
+    },
+    {
+      "id": "s148",
+      "tier": "expert",
+      "concept": "counters",
+      "title": "Phasing Preserves Everything About a Permanent",
+      "board_state": "A creature with two +1/+1 counters and an attached Aura phases out, then phases back in on your next turn.",
+      "options": [
+        {
+          "id": "a",
+          "text": "It comes back as a fresh permanent with no counters or Aura",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "It phases back in exactly as it was — counters, attached Auras/Equipment, and tapped status are unchanged, since phasing isn't a zone change",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "The Aura falls off during phasing since the creature technically leaves the battlefield",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 702.26: phased-out permanents aren't considered to have left the battlefield — everything about them, including counters and attachments, is preserved and simply treated as though it doesn't exist while phased out.",
+      "rules_refs": [
+        "CR 702.26"
+      ]
+    },
+    {
+      "id": "s149",
+      "tier": "expert",
+      "concept": "triggered_abilities",
+      "title": "A Doubled Trigger Gives You Two Separate Choices",
+      "board_state": "You control an effect that makes your triggered abilities trigger an additional time. Your permanent has 'Whenever you draw a card, you may pay {1}. If you do, gain 1 life.' You draw a card, causing the ability to trigger twice.",
+      "options": [
+        {
+          "id": "a",
+          "text": "You make one choice that applies to both instances",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "Each instance of the doubled trigger is independent — you decide separately for each whether to pay {1} and gain the life",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "The second trigger is simply ignored as a duplicate",
+          "correct": false
+        }
+      ],
+      "reveal": "Extra-trigger effects create genuinely separate instances of the triggered ability on the stack, each with its own independent choice.",
+      "rules_refs": [
+        "CR 603.3"
+      ]
+    },
+    {
+      "id": "s150",
+      "tier": "expert",
+      "concept": "keywords_evasion",
+      "title": "One Creature With Extra Blocks Still Can't Satisfy Menace",
+      "board_state": "An attacking creature has menace. The defending player controls a single creature with 'This creature can block an additional creature.'",
+      "options": [
+        {
+          "id": "a",
+          "text": "That one creature can legally block the menace attacker alone, since it's allowed to block two creatures",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "Menace requires two or more DIFFERENT creatures to be declared as blockers — one creature's ability to block multiple attackers doesn't satisfy that, since it's still only one blocking creature",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Menace is ignored once any creature has an additional-blocking ability",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 702.111: menace requires the attacking creature to be blocked by two or more creatures. A single creature — however many attackers it's allowed to block — still only counts as one blocker.",
+      "rules_refs": [
+        "CR 702.111"
+      ]
+    },
+    {
+      "id": "s151",
+      "tier": "expert",
+      "concept": "stack_priority",
+      "title": "Storm Copies Resolve Before the Original Spell",
+      "board_state": "You cast a spell with storm as the 3rd spell you've cast this turn. Its storm trigger creates 2 copies of it.",
+      "options": [
+        {
+          "id": "a",
+          "text": "The copies are created and resolve at the same time as the original, as part of its resolution",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "The storm triggered ability goes on the stack above the spell itself; its copies are created and fully resolve before the original spell ever resolves",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "The copies wait on the stack until after the original spell resolves",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 702.39: storm triggers when you cast the spell, so the ability goes on the stack above it. Its copies resolve — and are gone — before the original spell gets its turn.",
+      "rules_refs": [
+        "CR 702.39"
+      ]
+    },
+    {
+      "id": "s152",
+      "tier": "beginner",
+      "concept": "counters",
+      "title": "Removing More Counters Than Exist",
+      "board_state": "Your creature has one -1/-1 counter. An effect says 'remove two -1/-1 counters from it.'",
+      "options": [
+        {
+          "id": "a",
+          "text": "The effect fails entirely since there aren't two to remove",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "You simply remove the one that's there — you can't remove more counters than actually exist",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "The creature gains a +1/+1 counter to make up the difference",
+          "correct": false
+        }
+      ],
+      "reveal": "You can never remove more counters of a kind than are actually present on a permanent — the effect just does as much as it can.",
+      "rules_refs": [
+        "CR 121"
+      ]
+    },
+    {
+      "id": "s153",
+      "tier": "beginner",
+      "concept": "targeting",
+      "title": "Not Every Spell Needs a Target",
+      "board_state": "You cast a spell that reads 'Draw two cards.'",
+      "options": [
+        {
+          "id": "a",
+          "text": "You must choose a target player for the draw",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "This spell doesn't say 'target' anywhere, so it needs no target at all — it just resolves and affects its caster",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "It automatically targets the caster and can be stopped by hexproof",
+          "correct": false
+        }
+      ],
+      "reveal": "Only effects that literally say 'target' need one selected at cast time. Effects that just say 'you' or 'each player' resolve without any targeting step.",
+      "rules_refs": [
+        "CR 601.2c"
+      ]
+    },
+    {
+      "id": "s154",
+      "tier": "beginner",
+      "concept": "protection_keywords",
+      "title": "Hexproof From a Specific Color",
+      "board_state": "Your creature has hexproof from blue. An opponent tries to target it with a black removal spell.",
+      "options": [
+        {
+          "id": "a",
+          "text": "Hexproof from blue also blocks black spells, since it's still 'hexproof'",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "Hexproof from blue only stops blue sources from targeting it — a black spell can target it just fine",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Hexproof from a color is the same as full hexproof",
+          "correct": false
+        }
+      ],
+      "reveal": "Qualified hexproof ('hexproof from [quality]') only stops targeting by sources with that specific quality. It offers no protection from anything else.",
+      "rules_refs": [
+        "CR 702.11"
+      ]
+    },
+    {
+      "id": "s155",
+      "tier": "beginner",
+      "concept": "planeswalkers",
+      "title": "Planeswalkers Can't Block",
+      "board_state": "An opponent attacks you. You want your planeswalker to block the attacker.",
+      "options": [
+        {
+          "id": "a",
+          "text": "Any planeswalker may be declared as a blocker",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "Planeswalkers aren't creatures, so they can't be declared as blockers unless something has turned them into a creature",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Planeswalkers can block only attackers that are also targeting them",
+          "correct": false
+        }
+      ],
+      "reveal": "Only creatures can be declared as blockers. A planeswalker that hasn't become a creature has no way to block.",
+      "rules_refs": [
+        "CR 509.1",
+        "CR 306.2"
+      ]
+    },
+    {
+      "id": "s156",
+      "tier": "beginner",
+      "concept": "copies",
+      "title": "Turning a Permanent Into a Copy Doesn't Use the Stack",
+      "board_state": "You control a Clone-style creature that enters as a copy of another creature by way of a triggered ability.",
+      "options": [
+        {
+          "id": "a",
+          "text": "The copy effect is itself cast as a new spell, using the stack",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "The copy effect just directly changes the permanent's copiable characteristics when its ability resolves — nothing new is cast",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "The original creature is exiled and a new one is cast in its place",
+          "correct": false
+        }
+      ],
+      "reveal": "Copy effects for permanents change what a permanent IS, applied directly as the ability resolves — they don't 'cast' anything new.",
+      "rules_refs": [
+        "CR 706.2"
+      ]
+    },
+    {
+      "id": "s157",
+      "tier": "intermediate",
+      "concept": "graveyard_recursion",
+      "title": "Foretell: Pay Now, Cast Later",
+      "board_state": "During your turn, you pay {2} and exile a card with foretell from your hand, face down.",
+      "options": [
+        {
+          "id": "a",
+          "text": "You must cast it immediately or lose it",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "It stays exiled face down; on a later turn, you may cast it from exile for its foretell cost instead of its normal mana cost",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Foretelling a card counts as casting it",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 702.128: foretelling exiles the card face down for {2} during your turn. You may later cast it from exile for its foretell cost — foretelling itself is not casting.",
+      "rules_refs": [
+        "CR 702.128"
+      ]
+    },
+    {
+      "id": "s158",
+      "tier": "intermediate",
+      "concept": "replacement_effects",
+      "title": "Prevent Damage Doesn't Prevent Life Loss",
+      "board_state": "You have 'Prevent all damage that would be dealt to you this turn.' An opponent's spell says 'Each player loses 2 life.'",
+      "options": [
+        {
+          "id": "a",
+          "text": "The prevention shield stops the life loss too",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "Losing life directly isn't damage — your prevention effect does nothing here, and you lose the 2 life",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "You only lose 1 life since prevention halves it",
+          "correct": false
+        }
+      ],
+      "reveal": "Damage and life loss are different game concepts. A 'prevent damage' effect only replaces damage events — direct life-loss effects aren't damage and go through untouched.",
+      "rules_refs": [
+        "CR 119",
+        "CR 615.2"
+      ]
+    },
+    {
+      "id": "s159",
+      "tier": "commander",
+      "concept": "multiplayer_apnap",
+      "title": "Each Opponent Draws — Whose Turn Is It to Resolve First?",
+      "board_state": "You cast a spell that says 'Each opponent draws a card' in a 4-player Commander game.",
+      "options": [
+        {
+          "id": "a",
+          "text": "All three draws must be simultaneous, or the game breaks",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text": "The game still processes it in APNAP order, but since drawing a card involves no choice, the outcome is exactly the same regardless of order",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text": "Only the next player in turn order draws; the others don't",
+          "correct": false
+        }
+      ],
+      "reveal": "CR 101.4: effects affecting multiple players are processed in APNAP order, but for a non-choice action like drawing a card, order doesn't change the outcome — it only matters when an order-dependent choice is involved.",
+      "rules_refs": [
+        "CR 101.4"
       ]
     }
   ]
