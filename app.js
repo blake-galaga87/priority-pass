@@ -4,6 +4,8 @@ const PRACTICE_STATS_KEY = "priority-pass:practice-stats";
 const DAILY_STATE_KEY = "priority-pass:daily-state";
 const HISTORY_KEY = "priority-pass:history";
 const HISTORY_LIMIT = 1000;
+const DECK_KEY = "priority-pass:deck";
+const DECK_STATS_KEY = "priority-pass:deck-stats";
 
 function loadJSON(key, fallback) {
   try {
@@ -38,6 +40,45 @@ function loadDailyState() {
 
 function loadHistory() {
   return loadJSON(HISTORY_KEY, []);
+}
+
+function loadDeck() {
+  return loadJSON(DECK_KEY, { rawText: "", cardNames: [] });
+}
+
+function loadDeckStats() {
+  return loadJSON(DECK_STATS_KEY, { streak: 0, bestStreak: 0, correct: 0, total: 0 });
+}
+
+// Parses a Moxfield/Archidekt-style plain-text decklist ("1 Sol Ring (C21) 263",
+// "1x Blood Artist", "Sol Ring", etc). Strips quantities, set/collector info,
+// foil markers, and skips blank lines / section headers.
+function parseDecklist(text) {
+  const names = new Set();
+  text.split("\n").forEach((rawLine) => {
+    let line = rawLine.trim();
+    if (!line || line.startsWith("//") || line.startsWith("#")) return;
+    if (/^(deck|sideboard|commander|maybeboard)\s*$/i.test(line)) return;
+
+    const qtyMatch = line.match(/^(\d+)x?\s+(.+)$/i);
+    if (qtyMatch) line = qtyMatch[2];
+
+    line = line
+      .replace(/\(([^)]+)\)/g, "") // (SET)
+      .replace(/\[[^\]]+\]/g, "") // [SET]
+      .replace(/\*[fF]\*/g, "") // *F* foil marker
+      .replace(/\b[A-Z0-9]{2,5}\s+\d+[a-z]?$/i, "") // trailing "SET 123"
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    if (line.length > 1) names.add(line);
+  });
+  return Array.from(names);
+}
+
+function scenarioMentionsDeck(s, cardNamesLower) {
+  const text = `${s.title} ${s.board_state}`.toLowerCase();
+  return cardNamesLower.some((name) => name.length > 2 && text.includes(name));
 }
 
 function recordAttempt(mode, scenario, chosenOption) {
@@ -164,6 +205,7 @@ const state = {
   practice: { tier: "all", pool: [], poolIndex: 0, current: null, stats: loadPracticeStats() },
   daily: { dailyState: loadDailyState() },
   log: { search: "", tier: "all", concept: "all", result: "all" },
+  deck: { ...loadDeck(), pool: [], poolIndex: 0, current: null, stats: loadDeckStats() },
 };
 
 const root = document.getElementById("view-root");
@@ -514,12 +556,157 @@ function renderLogList() {
     .join("");
 }
 
+// ---------- deck view ----------
+
+function deckBuildPool() {
+  const d = state.deck;
+  const namesLower = d.cardNames.map((n) => n.toLowerCase());
+  const filtered = namesLower.length ? state.allScenarios.filter((s) => scenarioMentionsDeck(s, namesLower)) : [];
+  d.pool = shuffle(filtered);
+  d.poolIndex = 0;
+  d.current = null;
+}
+
+function deckNext() {
+  const d = state.deck;
+  if (d.pool.length === 0) {
+    d.current = null;
+    renderDeckPuzzleArea();
+    return;
+  }
+  if (d.poolIndex >= d.pool.length) {
+    d.pool = shuffle(d.pool);
+    d.poolIndex = 0;
+  }
+  d.current = d.pool[d.poolIndex++];
+  renderDeckPuzzleArea();
+}
+
+function renderDeckView() {
+  const d = state.deck;
+  root.innerHTML = `
+    <section class="deck-input">
+      <label for="deck-text">Paste your decklist (Moxfield/Archidekt export format)</label>
+      <textarea id="deck-text" rows="8" placeholder="1 Sol Ring&#10;1 Blood Artist&#10;1 Counterspell">${escapeHtml(d.rawText)}</textarea>
+      <div class="deck-actions">
+        <button class="next-btn" id="deck-save">Save deck</button>
+        <button class="ghost-btn" id="deck-clear">Clear deck</button>
+      </div>
+      <div class="deck-meta" id="deck-meta"></div>
+    </section>
+    <section class="stats" id="deck-stats-bar" aria-live="polite"></section>
+    <section id="puzzle-area" class="puzzle-area"></section>
+  `;
+
+  document.getElementById("deck-save").addEventListener("click", () => {
+    d.rawText = document.getElementById("deck-text").value;
+    d.cardNames = parseDecklist(d.rawText);
+    saveJSON(DECK_KEY, { rawText: d.rawText, cardNames: d.cardNames });
+    deckBuildPool();
+    deckNext();
+    renderDeckMeta();
+    renderDeckStatsBar();
+  });
+
+  document.getElementById("deck-clear").addEventListener("click", () => {
+    d.rawText = "";
+    d.cardNames = [];
+    saveJSON(DECK_KEY, { rawText: "", cardNames: [] });
+    document.getElementById("deck-text").value = "";
+    deckBuildPool();
+    renderDeckPuzzleArea();
+    renderDeckMeta();
+    renderDeckStatsBar();
+  });
+
+  deckBuildPool();
+  renderDeckMeta();
+  renderDeckStatsBar();
+  if (d.cardNames.length && d.pool.length) deckNext();
+  else renderDeckPuzzleArea();
+}
+
+function renderDeckMeta() {
+  const metaEl = document.getElementById("deck-meta");
+  if (!metaEl) return;
+  const d = state.deck;
+  if (!d.cardNames.length) {
+    metaEl.textContent = "Paste a decklist above to see puzzles built around your own cards.";
+    return;
+  }
+  metaEl.textContent = `${d.cardNames.length} card${d.cardNames.length === 1 ? "" : "s"} recognized · ${d.pool.length} matching puzzle${
+    d.pool.length === 1 ? "" : "s"
+  } in the bank.`;
+}
+
+function renderDeckStatsBar() {
+  const statsEl = document.getElementById("deck-stats-bar");
+  if (!statsEl) return;
+  const d = state.deck;
+  if (!d.pool.length) {
+    statsEl.innerHTML = "";
+    return;
+  }
+  statsEl.innerHTML = `
+    <div class="stat"><span class="stat-value">${d.stats.streak}</span><span class="stat-label">Streak</span></div>
+    <div class="stat"><span class="stat-value">${d.stats.correct}</span><span class="stat-label">Correct</span></div>
+    <div class="stat"><span class="stat-value">${d.stats.total}</span><span class="stat-label">Seen</span></div>
+    <div class="stat"><span class="stat-value">${d.stats.bestStreak}</span><span class="stat-label">Best streak</span></div>
+  `;
+}
+
+function renderDeckPuzzleArea() {
+  const puzzleArea = document.getElementById("puzzle-area");
+  if (!puzzleArea) return;
+  const d = state.deck;
+  if (!d.cardNames.length) {
+    puzzleArea.innerHTML = `<div class="empty-state">No deck saved yet.</div>`;
+    return;
+  }
+  if (!d.current) {
+    puzzleArea.innerHTML = `<div class="empty-state">No puzzles in the bank reference cards from this deck yet. Try Practice mode, or paste a bigger list.</div>`;
+    return;
+  }
+  puzzleArea.innerHTML = scenarioBodyHtml(d.current);
+  puzzleArea.querySelectorAll(".option-btn").forEach((btn) => {
+    btn.addEventListener("click", () => handleDeckAnswer(btn.dataset.optionId));
+  });
+}
+
+function handleDeckAnswer(optionId) {
+  const puzzleArea = document.getElementById("puzzle-area");
+  const d = state.deck;
+  const s = d.current;
+  const chosen = s.options.find((o) => o.id === optionId);
+  const wasCorrect = !!chosen.correct;
+
+  lockOptions(puzzleArea, s, optionId);
+
+  d.stats.total += 1;
+  if (wasCorrect) {
+    d.stats.correct += 1;
+    d.stats.streak += 1;
+    d.stats.bestStreak = Math.max(d.stats.bestStreak, d.stats.streak);
+  } else {
+    d.stats.streak = 0;
+  }
+  saveJSON(DECK_STATS_KEY, d.stats);
+  recordAttempt("deck", s, chosen);
+  renderDeckStatsBar();
+
+  const revealSlot = document.getElementById("reveal-slot");
+  revealSlot.innerHTML = revealHtml(s, wasCorrect, `<button class="next-btn" id="deck-next-btn">Next puzzle →</button>`);
+  document.getElementById("deck-next-btn").addEventListener("click", deckNext);
+  revealSlot.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
 // ---------- tab wiring ----------
 
 function renderActiveTab() {
   if (state.activeTab === "practice") renderPracticeView();
   else if (state.activeTab === "daily") renderDailyView();
   else if (state.activeTab === "log") renderLogView();
+  else if (state.activeTab === "deck") renderDeckView();
 }
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {

@@ -348,6 +348,45 @@ body {
   border-radius: 8px;
 }
 
+/* Deck view */
+
+.deck-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+}
+
+.deck-input label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.deck-input textarea {
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.7rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.deck-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.deck-meta {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
 /* Log view */
 
 .log-summary {
