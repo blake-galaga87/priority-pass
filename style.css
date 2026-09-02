@@ -444,6 +444,22 @@ body {
   transition: filter 0.4s ease;
 }
 
+.fogged-name-cover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 15%;
+  background: var(--bg-panel-raised);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+}
+
 .fogged-chips {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

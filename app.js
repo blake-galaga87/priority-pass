@@ -981,12 +981,19 @@ function foggedSaveState(gs) {
   saveJSON(FOGGED_STATE_KEY, gs);
 }
 
+function foggedRevealFraction(gs) {
+  const applicableRegions = foggedApplicableRegions(gs.card);
+  if (!applicableRegions.length) return 0;
+  return gs.revealedRegions.length / applicableRegions.length;
+}
+
 function foggedBlurPx(gs) {
-  // The image (and name) never sharpen from answering questions — this is a
-  // reasoning game about what the card DOES, not a visual-recognition game.
-  // Full clarity is only the end-of-round reveal, on a win or a loss.
+  // The art itself gradually sharpens as correct ("yes") answers reveal more
+  // attribute regions. The card's name is handled separately (see
+  // fogged-name-cover) — it stays fully hidden regardless of this blur level,
+  // right up until the round ends.
   if (gs.solved || gs.lost) return 0;
-  return FOGGED_MAX_BLUR_PX;
+  return FOGGED_MAX_BLUR_PX * (1 - foggedRevealFraction(gs));
 }
 
 function foggedShareText(gs) {
@@ -1138,6 +1145,7 @@ function renderFoggedGame() {
       <div class="fogged-card-frame">
         <div class="fogged-image-wrap">
           ${gs.card.image_url ? `<img id="fogged-img" src="${gs.card.image_url}" alt="Mystery card" style="filter: blur(${blur}px);" />` : `<div class="empty-state">No image available</div>`}
+          ${gs.card.image_url && !gameOver ? `<div class="fogged-name-cover">?????</div>` : ""}
         </div>
       </div>
 
